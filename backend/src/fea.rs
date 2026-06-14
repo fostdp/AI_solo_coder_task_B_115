@@ -57,6 +57,11 @@ pub struct FEAnalyzer {
     pub poisson_ratio: f64,
     pub nx: usize,
     pub ny: usize,
+    pub is_masonry: bool,
+    pub horizontal_strength_ratio: f64,
+    pub vertical_strength_ratio: f64,
+    pub mortar_joint_height_m: f64,
+    pub brick_height_m: f64,
 }
 
 impl FEAnalyzer {
@@ -69,6 +74,11 @@ impl FEAnalyzer {
         tensile_strength_pa: f64,
     ) -> Self {
         let elastic_modulus_pa = compressive_strength_pa * 1000.0;
+        let is_masonry = true;
+        let horizontal_strength_ratio = 1.0;
+        let vertical_strength_ratio = 0.6;
+        let mortar_joint_height_m = 0.01;
+        let brick_height_m = 0.1;
         Self {
             wall_width_m: width_m,
             wall_height_m: height_m,
@@ -80,18 +90,56 @@ impl FEAnalyzer {
             poisson_ratio: 0.2,
             nx: 20,
             ny: 15,
+            is_masonry,
+            horizontal_strength_ratio,
+            vertical_strength_ratio,
+            mortar_joint_height_m,
+            brick_height_m,
         }
     }
 
+    pub fn with_masonry_params(mut self, is_masonry: bool, horizontal_ratio: f64, vertical_ratio: f64) -> Self {
+        self.is_masonry = is_masonry;
+        self.horizontal_strength_ratio = horizontal_ratio;
+        self.vertical_strength_ratio = vertical_ratio;
+        self
+    }
+
+    pub fn with_brick_params(mut self, brick_height_m: f64, mortar_joint_height_m: f64) -> Self {
+        self.brick_height_m = brick_height_m;
+        self.mortar_joint_height_m = mortar_joint_height_m;
+        self
+    }
+
     pub fn from_wall_props(wall: &crate::siege::WallProperties) -> Self {
-        Self::new(
+        let mut analyzer = Self::new(
             30.0,
             10.0,
             wall.thickness_m,
             wall.density_kgm3,
             wall.compressive_strength_pa,
             wall.tensile_strength_pa,
-        )
+        );
+
+        match wall.material.as_str() {
+            "stone_masonry" => {
+                analyzer = analyzer.with_masonry_params(true, 1.0, 0.55);
+                analyzer = analyzer.with_brick_params(0.3, 0.015);
+            }
+            "brick_masonry" => {
+                analyzer = analyzer.with_masonry_params(true, 1.0, 0.65);
+                analyzer = analyzer.with_brick_params(0.1, 0.01);
+            }
+            "rammed_earth" | "double_rammed_earth" => {
+                analyzer = analyzer.with_masonry_params(false, 1.0, 0.9);
+                analyzer = analyzer.with_brick_params(0.0, 0.0);
+            }
+            _ => {
+                analyzer = analyzer.with_masonry_params(false, 1.0, 1.0);
+            }
+        }
+
+        analyzer
     }
 
     pub fn analyze(&self, existing_impacts: &[ImpactLoad]) -> FEAResult {
@@ -131,12 +179,25 @@ impl FEAnalyzer {
 
                 stress_field[i][j] = total_stress;
 
-                let damage = if total_stress > self.compressive_strength_pa {
-                    1.0 - (self.compressive_strength_pa / total_stress).min(1.0)
+                let local_compressive_strength = self.local_compressive_strength(cy, total_stress);
+                let local_tensile_strength = self.local_tensile_strength(cy);
+
+                let damage = if total_stress > local_compressive_strength {
+                    1.0 - (local_compressive_strength / total_stress).min(1.0)
                 } else {
-                    (total_stress / self.compressive_strength_pa).powi(3) * 0.1
+                    (total_stress / local_compressive_strength).powi(3) * 0.1
                 };
                 damage_field[i][j] = damage.min(1.0);
+
+                let material_type = if self.is_masonry {
+                    if self.is_mortar_joint(cy) {
+                        "mortar_joint".to_string()
+                    } else {
+                        "masonry_brick".to_string()
+                    }
+                } else {
+                    "homogeneous".to_string()
+                };
 
                 elements.push(WallElement {
                     i,
@@ -148,9 +209,9 @@ impl FEAnalyzer {
                     stress_pa: total_stress,
                     strain: total_stress / self.elastic_modulus_pa,
                     damage: damage_field[i][j],
-                    material_type: "rammed_earth".to_string(),
-                    compressive_strength_pa: self.compressive_strength_pa,
-                    tensile_strength_pa: self.tensile_strength_pa,
+                    material_type,
+                    compressive_strength_pa: local_compressive_strength,
+                    tensile_strength_pa: local_tensile_strength,
                 });
             }
         }
@@ -192,6 +253,39 @@ impl FEAnalyzer {
         let k0 = 1.0 - self.poisson_ratio / (1.0 + self.poisson_ratio);
         let overburden = self.wall_density_kgm3 * 9.81 * height_m;
         overburden * k0 * 0.3
+    }
+
+    fn is_mortar_joint(&self, y_m: f64) -> bool {
+        if !self.is_masonry || self.brick_height_m <= 0.0 || self.mortar_joint_height_m <= 0.0 {
+            return false;
+        }
+        let period = self.brick_height_m + self.mortar_joint_height_m;
+        let pos_in_period = y_m % period;
+        pos_in_period < self.mortar_joint_height_m
+    }
+
+    fn local_compressive_strength(&self, y_m: f64, _total_stress: f64) -> f64 {
+        if !self.is_masonry {
+            return self.compressive_strength_pa;
+        }
+
+        if self.is_mortar_joint(y_m) {
+            self.compressive_strength_pa * self.vertical_strength_ratio * 0.7
+        } else {
+            self.compressive_strength_pa * self.horizontal_strength_ratio
+        }
+    }
+
+    fn local_tensile_strength(&self, y_m: f64) -> f64 {
+        if !self.is_masonry {
+            return self.tensile_strength_pa;
+        }
+
+        if self.is_mortar_joint(y_m) {
+            self.tensile_strength_pa * self.vertical_strength_ratio * 0.4
+        } else {
+            self.tensile_strength_pa * self.horizontal_strength_ratio
+        }
     }
 
     fn compute_impact_stress(&self, cx: f64, cy: f64, impact: &ImpactLoad) -> f64 {
