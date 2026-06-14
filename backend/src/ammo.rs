@@ -225,4 +225,180 @@ mod tests {
         let radius_stone = AmmoType::RoundStone.contamination_radius_m(90.0);
         assert_eq!(radius_stone, 0.0);
     }
+
+    #[test]
+    fn test_density_ordering() {
+        let d_stone = AmmoType::RoundStone.density_kgm3();
+        let d_gunpowder = AmmoType::GunpowderBomb.density_kgm3();
+        let d_corpse = AmmoType::CorpseShell.density_kgm3();
+        assert!(d_stone > d_gunpowder, "stone({}) should be denser than gunpowder({})", d_stone, d_gunpowder);
+        assert!(d_gunpowder > d_corpse, "gunpowder({}) should be denser than corpse({})", d_gunpowder, d_corpse);
+    }
+
+    #[test]
+    fn test_drag_modifier_ordering() {
+        let drag_stone = AmmoType::RoundStone.drag_modifier();
+        let drag_gunpowder = AmmoType::GunpowderBomb.drag_modifier();
+        let drag_corpse = AmmoType::CorpseShell.drag_modifier();
+        assert_eq!(drag_stone, 1.0, "round stone is baseline drag");
+        assert!(drag_gunpowder > drag_stone, "gunpowder bomb should have higher drag than stone");
+        assert!(drag_corpse > drag_gunpowder, "corpse shell should have highest drag");
+    }
+
+    #[test]
+    fn test_shape_factor_range() {
+        for at in AmmoType::all() {
+            let sf = at.shape_factor();
+            assert!(sf > 0.0 && sf <= 1.0, "shape_factor {:?} = {} out of range", at, sf);
+        }
+        assert!(AmmoType::RoundStone.shape_factor() > AmmoType::CorpseShell.shape_factor());
+    }
+
+    #[test]
+    fn test_explosive_yield_only_gunpowder() {
+        assert_eq!(AmmoType::RoundStone.explosive_yield_j(100.0), 0.0);
+        assert_eq!(AmmoType::CorpseShell.explosive_yield_j(100.0), 0.0);
+        let yield_val = AmmoType::GunpowderBomb.explosive_yield_j(100.0);
+        let expected = 100.0 * 0.3 * 3_000_000.0;
+        assert!((yield_val - expected).abs() < 1.0, "yield should be mass*0.3*3MJ");
+    }
+
+    #[test]
+    fn test_blast_radius_only_gunpowder() {
+        assert_eq!(AmmoType::RoundStone.blast_radius_m(100.0), 0.0);
+        assert_eq!(AmmoType::CorpseShell.blast_radius_m(100.0), 0.0);
+        let r = AmmoType::GunpowderBomb.blast_radius_m(100.0);
+        assert!(r > 0.0, "gunpowder blast radius should be positive");
+    }
+
+    #[test]
+    fn test_contamination_only_corpse() {
+        assert_eq!(AmmoType::RoundStone.contamination_radius_m(50.0), 0.0);
+        assert_eq!(AmmoType::GunpowderBomb.contamination_radius_m(50.0), 0.0);
+        let r = AmmoType::CorpseShell.contamination_radius_m(50.0);
+        assert!(r > 0.0, "corpse contamination radius should be positive");
+        assert_eq!(AmmoType::RoundStone.contamination_duration_hours(), 0.0);
+        assert_eq!(AmmoType::GunpowderBomb.contamination_duration_hours(), 0.0);
+        assert_eq!(AmmoType::CorpseShell.contamination_duration_hours(), 72.0);
+    }
+
+    #[test]
+    fn test_ammo_profile_from_type_effective_diameter() {
+        let mass = 90.0;
+        let profile_stone = AmmoProfile::from_type(AmmoType::RoundStone, mass);
+        let profile_corpse = AmmoProfile::from_type(AmmoType::CorpseShell, mass);
+        let d_stone = profile_stone.effective_diameter(mass);
+        let d_corpse = profile_corpse.effective_diameter(mass);
+        assert!(d_stone > 0.0);
+        assert!(d_corpse > 0.0);
+        assert!(d_corpse > d_stone, "corpse (lower density) should have larger effective diameter");
+    }
+
+    #[test]
+    fn test_ammo_profile_ballistic_coeff_modifier() {
+        let profile_stone = AmmoProfile::from_type(AmmoType::RoundStone, 90.0);
+        assert!((profile_stone.ballistic_coefficient_modifier - 1.0).abs() < 0.01,
+            "stone should have ballistic_coeff_modifier ~1.0, got {}", profile_stone.ballistic_coefficient_modifier);
+        let profile_corpse = AmmoProfile::from_type(AmmoType::CorpseShell, 90.0);
+        assert!(profile_corpse.ballistic_coefficient_modifier < profile_stone.ballistic_coefficient_modifier,
+            "corpse should have lower ballistic coeff than stone");
+    }
+
+    #[test]
+    fn test_explosive_yield_scales_with_mass() {
+        let y1 = AmmoType::GunpowderBomb.explosive_yield_j(50.0);
+        let y2 = AmmoType::GunpowderBomb.explosive_yield_j(100.0);
+        assert!((y2 / y1 - 2.0).abs() < 0.01, "yield should scale linearly with mass");
+    }
+
+    #[test]
+    fn test_blast_radius_scales_sublinearly() {
+        let r1 = AmmoType::GunpowderBomb.blast_radius_m(50.0);
+        let r2 = AmmoType::GunpowderBomb.blast_radius_m(400.0);
+        assert!(r2 < r1 * 4.0, "blast radius should scale sublinearly (cube root)");
+    }
+
+    #[test]
+    fn test_ammo_profile_extreme_mass() {
+        let profile = AmmoProfile::from_type(AmmoType::RoundStone, 0.001);
+        assert!(profile.effective_diameter(0.001) > 0.0);
+        assert!(profile.explosive_yield_j == 0.0);
+        let profile2 = AmmoProfile::from_type(AmmoType::RoundStone, 10000.0);
+        assert!(profile2.effective_diameter(10000.0) > 0.0);
+    }
+
+    #[test]
+    fn test_ammo_profile_gunpowder_extreme() {
+        let tiny = AmmoProfile::from_type(AmmoType::GunpowderBomb, 0.01);
+        assert!(tiny.blast_radius_m >= 0.0);
+        assert!(tiny.explosive_yield_j >= 0.0);
+        let huge = AmmoProfile::from_type(AmmoType::GunpowderBomb, 50000.0);
+        assert!(huge.blast_radius_m > 0.0);
+        assert!(huge.explosive_yield_j > 0.0);
+    }
+
+    #[test]
+    fn test_ammo_type_default() {
+        assert_eq!(AmmoType::default(), AmmoType::RoundStone);
+    }
+
+    #[test]
+    fn test_ammo_type_all_returns_three() {
+        assert_eq!(AmmoType::all().len(), 3);
+    }
+
+    #[test]
+    fn test_ammo_type_equality() {
+        assert_eq!(AmmoType::RoundStone, AmmoType::RoundStone);
+        assert_ne!(AmmoType::RoundStone, AmmoType::GunpowderBomb);
+    }
+
+    #[test]
+    fn test_compare_ammo_returns_different_ranges() {
+        let comparison = compare_ammo(50.0, 45.0, 90.0, 1.225);
+        assert!(comparison.round_stone.estimated_range_m > 0.0);
+        assert!(comparison.gunpowder_bomb.estimated_range_m > 0.0);
+        assert!(comparison.corpse_shell.estimated_range_m > 0.0);
+        assert!(comparison.round_stone.estimated_range_m >= comparison.corpse_shell.estimated_range_m,
+            "stone should fly further than corpse due to lower drag");
+    }
+
+    #[test]
+    fn test_compare_ammo_damage_potential() {
+        let comparison = compare_ammo(50.0, 45.0, 90.0, 1.225);
+        assert!(comparison.gunpowder_bomb.explosive_energy_j > 0.0);
+        assert_eq!(comparison.round_stone.explosive_energy_j, 0.0);
+        assert!(comparison.corpse_shell.contamination_radius_m > 0.0);
+        assert_eq!(comparison.round_stone.contamination_radius_m, 0.0);
+    }
+
+    #[test]
+    fn test_compare_ammo_extreme_velocity() {
+        let comparison = compare_ammo(1.0, 45.0, 90.0, 1.225);
+        assert!(comparison.round_stone.estimated_range_m > 0.0);
+        let comparison2 = compare_ammo(200.0, 45.0, 90.0, 1.225);
+        assert!(comparison2.round_stone.estimated_range_m > comparison.round_stone.estimated_range_m);
+    }
+
+    #[test]
+    fn test_compare_ammo_zero_angle() {
+        let comparison = compare_ammo(50.0, 0.1, 90.0, 1.225);
+        assert!(comparison.round_stone.estimated_range_m > 0.0);
+        assert!(comparison.round_stone.estimated_max_height_m < 10.0);
+    }
+
+    #[test]
+    fn test_compare_ammo_high_angle() {
+        let comparison = compare_ammo(50.0, 85.0, 90.0, 1.225);
+        assert!(comparison.round_stone.estimated_max_height_m > comparison.round_stone.estimated_range_m,
+            "at 85deg, max_height should exceed range");
+    }
+
+    #[test]
+    fn test_effective_diameter_density_relationship() {
+        let d_stone = AmmoProfile::from_type(AmmoType::RoundStone, 90.0).effective_diameter(90.0);
+        let d_corpse = AmmoProfile::from_type(AmmoType::CorpseShell, 90.0).effective_diameter(90.0);
+        assert!(d_corpse > d_stone,
+            "lower density → larger volume → larger diameter");
+    }
 }
