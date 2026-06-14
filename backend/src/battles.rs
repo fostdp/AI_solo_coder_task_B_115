@@ -299,6 +299,213 @@ pub fn get_battle_by_id(id: u32) -> Option<BattleScenario> {
     get_historical_battles().into_iter().find(|b| b.id == id)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeStatus {
+    Success,
+    Failure,
+    Running,
+}
+
+pub enum BehaviorNode {
+    Selector(Vec<BehaviorNode>),
+    Sequence(Vec<BehaviorNode>),
+    Condition(fn(&BattleState, &BattleScenario) -> bool),
+    Action(fn(&mut BattleState, &BattleScenario) -> NodeStatus),
+    Inverter(Box<BehaviorNode>),
+}
+
+impl BehaviorNode {
+    pub fn execute(&self, state: &mut BattleState, scenario: &BattleScenario) -> NodeStatus {
+        match self {
+            BehaviorNode::Selector(children) => {
+                for child in children {
+                    match child.execute(state, scenario) {
+                        NodeStatus::Success => return NodeStatus::Success,
+                        NodeStatus::Running => return NodeStatus::Running,
+                        NodeStatus::Failure => continue,
+                    }
+                }
+                NodeStatus::Failure
+            }
+            BehaviorNode::Sequence(children) => {
+                for child in children {
+                    match child.execute(state, scenario) {
+                        NodeStatus::Failure => return NodeStatus::Failure,
+                        NodeStatus::Running => return NodeStatus::Running,
+                        NodeStatus::Success => continue,
+                    }
+                }
+                NodeStatus::Success
+            }
+            BehaviorNode::Condition(cond) => {
+                if cond(state, scenario) {
+                    NodeStatus::Success
+                } else {
+                    NodeStatus::Failure
+                }
+            }
+            BehaviorNode::Action(action) => action(state, scenario),
+            BehaviorNode::Inverter(child) => {
+                match child.execute(state, scenario) {
+                    NodeStatus::Success => NodeStatus::Failure,
+                    NodeStatus::Failure => NodeStatus::Success,
+                    NodeStatus::Running => NodeStatus::Running,
+                }
+            }
+        }
+    }
+}
+
+pub fn create_attacker_behavior_tree() -> BehaviorNode {
+    BehaviorNode::Selector(vec![
+        BehaviorNode::Sequence(vec![
+            BehaviorNode::Condition(|state, _| state.wall_damage < 0.3),
+            BehaviorNode::Action(attacker_focus_gate),
+        ]),
+        BehaviorNode::Sequence(vec![
+            BehaviorNode::Condition(|state, _| state.wall_damage >= 0.3 && state.wall_damage < 0.7),
+            BehaviorNode::Action(attacker_concentrate_fire),
+        ]),
+        BehaviorNode::Sequence(vec![
+            BehaviorNode::Condition(|state, _| state.wall_damage >= 0.7),
+            BehaviorNode::Action(attacker_all_out_assault),
+        ]),
+        BehaviorNode::Action(attacker_default_fire),
+    ])
+}
+
+pub fn create_defender_behavior_tree() -> BehaviorNode {
+    BehaviorNode::Selector(vec![
+        BehaviorNode::Sequence(vec![
+            BehaviorNode::Condition(|state, _| state.wall_damage > 0.6),
+            BehaviorNode::Action(defender_emergency_repair),
+        ]),
+        BehaviorNode::Sequence(vec![
+            BehaviorNode::Condition(|state, scenario| {
+                state.current_day > scenario.duration_days / 2
+            }),
+            BehaviorNode::Action(defender_reinforce_walls),
+        ]),
+        BehaviorNode::Action(defender_regular_maintenance),
+    ])
+}
+
+fn attacker_focus_gate(state: &mut BattleState, scenario: &BattleScenario) -> NodeStatus {
+    let gate_x = 15.0;
+    for bt in &scenario.attacker_trebuchets {
+        if state.has_ammo(bt.trebuchet_id) {
+            let damage = compute_attack_damage(bt.ammo_type, 0.8);
+            let y_offset = 3.0 + pseudo_random() * 4.0;
+            state.record_impact(bt.trebuchet_id, gate_x + (pseudo_random() - 0.5) * 2.0, y_offset, bt.ammo_type, damage);
+        }
+    }
+    NodeStatus::Success
+}
+
+fn attacker_concentrate_fire(state: &mut BattleState, scenario: &BattleScenario) -> NodeStatus {
+    let weak_point_x = find_weak_point_x(state);
+    for bt in &scenario.attacker_trebuchets {
+        if state.has_ammo(bt.trebuchet_id) {
+            let damage = compute_attack_damage(bt.ammo_type, 1.0);
+            let spread = (pseudo_random() - 0.5) * 4.0;
+            let y_spread = (pseudo_random() - 0.5) * 3.0 + 5.0;
+            state.record_impact(bt.trebuchet_id, weak_point_x + spread, y_spread, bt.ammo_type, damage);
+        }
+    }
+    NodeStatus::Success
+}
+
+fn attacker_all_out_assault(state: &mut BattleState, scenario: &BattleScenario) -> NodeStatus {
+    let weak_point_x = find_weak_point_x(state);
+    for bt in &scenario.attacker_trebuchets {
+        if state.has_ammo(bt.trebuchet_id) {
+            let damage = compute_attack_damage(bt.ammo_type, 1.2);
+            let spread = (pseudo_random() - 0.5) * 2.0;
+            let y_low = 2.0 + pseudo_random() * 3.0;
+            state.record_impact(bt.trebuchet_id, weak_point_x + spread, y_low, bt.ammo_type, damage);
+        }
+    }
+    NodeStatus::Success
+}
+
+fn attacker_default_fire(state: &mut BattleState, scenario: &BattleScenario) -> NodeStatus {
+    for bt in &scenario.attacker_trebuchets {
+        if state.has_ammo(bt.trebuchet_id) {
+            let damage = compute_attack_damage(bt.ammo_type, 0.7);
+            let x = 5.0 + pseudo_random() * 20.0;
+            let y = 2.0 + pseudo_random() * 6.0;
+            state.record_impact(bt.trebuchet_id, x, y, bt.ammo_type, damage);
+        }
+    }
+    NodeStatus::Success
+}
+
+fn defender_emergency_repair(state: &mut BattleState, _scenario: &BattleScenario) -> NodeStatus {
+    let repair_amount = 0.05;
+    state.wall_damage = (state.wall_damage - repair_amount).max(0.0);
+    NodeStatus::Success
+}
+
+fn defender_reinforce_walls(state: &mut BattleState, _scenario: &BattleScenario) -> NodeStatus {
+    let repair_amount = 0.02;
+    state.wall_damage = (state.wall_damage - repair_amount).max(0.0);
+    NodeStatus::Success
+}
+
+fn defender_regular_maintenance(state: &mut BattleState, _scenario: &BattleScenario) -> NodeStatus {
+    if state.wall_damage > 0.1 {
+        state.wall_damage = (state.wall_damage - 0.01).max(0.0);
+    }
+    NodeStatus::Success
+}
+
+fn compute_attack_damage(ammo: AmmoType, intensity: f64) -> f64 {
+    let base = match ammo {
+        AmmoType::RoundStone => 0.02,
+        AmmoType::GunpowderBomb => 0.05,
+        AmmoType::CorpseShell => 0.015,
+    };
+    base * intensity * (0.8 + pseudo_random() * 0.4)
+}
+
+fn find_weak_point_x(state: &BattleState) -> f64 {
+    let mut max_damage = 0.0;
+    let mut weak_x = 15.0;
+    for record in &state.impact_log {
+        if record.damage_ratio > max_damage {
+            max_damage = record.damage_ratio;
+            weak_x = record.target_x;
+        }
+    }
+    weak_x
+}
+
+fn pseudo_random() -> f64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let ns: u64 = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos() as u64;
+    let x = ns.wrapping_mul(6364136223846793005u64).wrapping_add(1442695040888963407u64);
+    (x >> 33) as f64 / (1u64 << 31) as f64
+}
+
+pub fn simulate_battle_day(
+    state: &mut BattleState,
+    scenario: &BattleScenario,
+    attacker_tree: &BehaviorNode,
+    defender_tree: &BehaviorNode,
+) {
+    if state.is_victory || state.is_defeat {
+        return;
+    }
+
+    let _attacker_result = attacker_tree.execute(state, scenario);
+    let _defender_result = defender_tree.execute(state, scenario);
+
+    state.advance_day();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
