@@ -13,6 +13,10 @@ mod fea;
 mod genetic;
 mod coordinator;
 mod battles;
+mod ammo_comparator;
+mod wall_weakness_finder;
+mod salvo_optimizer;
+mod battle_simulator;
 
 use api::{AppState, create_router};
 use config::AppConfig;
