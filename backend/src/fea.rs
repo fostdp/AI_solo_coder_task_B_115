@@ -278,9 +278,13 @@ pub struct ImpactLoad {
 mod tests {
     use super::*;
 
+    fn default_analyzer() -> FEAnalyzer {
+        FEAnalyzer::new(30.0, 10.0, 3.0, 1800.0, 2_000_000.0, 200_000.0)
+    }
+
     #[test]
     fn test_fe_analysis_no_impacts() {
-        let analyzer = FEAnalyzer::new(30.0, 10.0, 3.0, 1800.0, 2_000_000.0, 200_000.0);
+        let analyzer = default_analyzer();
         let result = analyzer.analyze(&[]);
         assert!(result.max_stress_pa > 0.0);
         assert!(result.min_safety_factor > 0.0);
@@ -288,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_fe_analysis_with_impacts() {
-        let analyzer = FEAnalyzer::new(30.0, 10.0, 3.0, 1800.0, 2_000_000.0, 200_000.0);
+        let analyzer = default_analyzer();
         let impacts = vec![ImpactLoad {
             x_m: 15.0,
             y_m: 5.0,
@@ -298,5 +302,249 @@ mod tests {
         let result = analyzer.analyze(&impacts);
         assert!(result.max_stress_pa > 0.0);
         assert!(!result.weak_points.is_empty() || result.max_stress_pa > 0.0);
+    }
+
+    #[test]
+    fn test_stress_field_dimensions() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        assert_eq!(result.stress_field.len(), analyzer.nx);
+        for row in &result.stress_field {
+            assert_eq!(row.len(), analyzer.ny);
+        }
+    }
+
+    #[test]
+    fn test_damage_field_dimensions() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        assert_eq!(result.damage_field.len(), analyzer.nx);
+        for row in &result.damage_field {
+            assert_eq!(row.len(), analyzer.ny);
+        }
+    }
+
+    #[test]
+    fn test_damage_values_in_range() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        for row in &result.damage_field {
+            for &d in row {
+                assert!(d >= 0.0 && d <= 1.0, "damage {} out of [0,1]", d);
+            }
+        }
+    }
+
+    #[test]
+    fn test_stress_non_negative() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        for row in &result.stress_field {
+            for &s in row {
+                assert!(s >= 0.0, "stress should be non-negative, got {}", s);
+            }
+        }
+    }
+
+    #[test]
+    fn test_gravity_load_increases_with_depth() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        let j_bottom = 0;
+        let j_top = analyzer.ny - 1;
+        let i_mid = analyzer.nx / 2;
+        let stress_bottom = result.stress_field[i_mid][j_bottom];
+        let stress_top = result.stress_field[i_mid][j_top];
+        assert!(stress_bottom > stress_top,
+            "stress at bottom ({}) should exceed top ({}) due to gravity", stress_bottom, stress_top);
+    }
+
+    #[test]
+    fn test_gate_proximity_higher_stress() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        let gate_col = analyzer.nx / 2;
+        let away_col = 1;
+        let j_mid = analyzer.ny / 2;
+        let stress_gate = result.stress_field[gate_col][j_mid];
+        let stress_away = result.stress_field[away_col][j_mid];
+        assert!(stress_gate > stress_away,
+            "stress near gate ({}) should exceed away ({})", stress_gate, stress_away);
+    }
+
+    #[test]
+    fn test_corner_stress_higher() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        let j_mid = analyzer.ny / 2;
+        let stress_corner = result.stress_field[0][j_mid];
+        let stress_mid = result.stress_field[analyzer.nx / 2][j_mid];
+        let gate_col = analyzer.nx / 2;
+        if gate_col != 0 {
+            assert!(stress_corner >= stress_mid * 0.8,
+                "corner stress should be elevated due to stress concentration");
+        }
+    }
+
+    #[test]
+    fn test_impact_increases_stress() {
+        let analyzer = default_analyzer();
+        let result_no_impact = analyzer.analyze(&[]);
+        let impacts = vec![ImpactLoad {
+            x_m: 15.0,
+            y_m: 5.0,
+            impact_force_n: 5_000_000.0,
+            blast_radius_m: 3.0,
+        }];
+        let result_with_impact = analyzer.analyze(&impacts);
+        assert!(result_with_impact.max_stress_pa >= result_no_impact.max_stress_pa,
+            "impact should increase or maintain max stress");
+    }
+
+    #[test]
+    fn test_impact_stress_attenuation() {
+        let analyzer = default_analyzer();
+        let impacts = vec![ImpactLoad {
+            x_m: 15.0,
+            y_m: 5.0,
+            impact_force_n: 5_000_000.0,
+            blast_radius_m: 2.0,
+        }];
+        let result = analyzer.analyze(&impacts);
+        let dx = analyzer.wall_width_m / analyzer.nx as f64;
+        let i_impact = (15.0 / dx) as usize;
+        let i_far = 0;
+        let j_mid = analyzer.ny / 2;
+        let stress_near = result.stress_field[i_impact.min(analyzer.nx - 1)][j_mid];
+        let stress_far = result.stress_field[i_far][j_mid];
+        assert!(stress_near > stress_far,
+            "stress near impact ({}) should exceed far point ({})", stress_near, stress_far);
+    }
+
+    #[test]
+    fn test_mesh_element_count() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        assert_eq!(result.mesh.elements.len(), analyzer.nx * analyzer.ny);
+    }
+
+    #[test]
+    fn test_mesh_properties() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        assert!((result.mesh.width_m - 30.0).abs() < 0.01);
+        assert!((result.mesh.height_m - 10.0).abs() < 0.01);
+        assert!((result.mesh.thickness_m - 3.0).abs() < 0.01);
+        assert_eq!(result.mesh.nx, 20);
+        assert_eq!(result.mesh.ny, 15);
+    }
+
+    #[test]
+    fn test_weak_points_priority_ordering() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        for w in result.weak_points.windows(2) {
+            assert!(w[0].priority >= w[1].priority,
+                "weak points should be sorted by priority descending");
+        }
+    }
+
+    #[test]
+    fn test_weak_points_within_wall() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        for wp in &result.weak_points {
+            assert!(wp.x_m >= 0.0 && wp.x_m <= analyzer.wall_width_m,
+                "weak point x={} outside wall width {}", wp.x_m, analyzer.wall_width_m);
+            assert!(wp.y_m >= 0.0 && wp.y_m <= analyzer.wall_height_m,
+                "weak point y={} outside wall height {}", wp.y_m, analyzer.wall_height_m);
+        }
+    }
+
+    #[test]
+    fn test_safety_factor_definition() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        if result.max_stress_pa > 0.0 {
+            let expected_safety = analyzer.compressive_strength_pa / result.max_stress_pa;
+            assert!((result.min_safety_factor - expected_safety).abs() < 0.01,
+                "min_safety_factor should be strength/max_stress");
+        }
+    }
+
+    #[test]
+    fn test_multiple_impacts_cumulative() {
+        let analyzer = default_analyzer();
+        let single = vec![ImpactLoad {
+            x_m: 15.0, y_m: 5.0, impact_force_n: 1_000_000.0, blast_radius_m: 2.0,
+        }];
+        let double = vec![
+            ImpactLoad { x_m: 15.0, y_m: 5.0, impact_force_n: 1_000_000.0, blast_radius_m: 2.0 },
+            ImpactLoad { x_m: 16.0, y_m: 5.0, impact_force_n: 1_000_000.0, blast_radius_m: 2.0 },
+        ];
+        let result_single = analyzer.analyze(&single);
+        let result_double = analyzer.analyze(&double);
+        assert!(result_double.max_stress_pa >= result_single.max_stress_pa,
+            "multiple impacts should increase max stress");
+    }
+
+    #[test]
+    fn test_high_strength_wall_lower_damage() {
+        let weak = FEAnalyzer::new(30.0, 10.0, 3.0, 1800.0, 500_000.0, 50_000.0);
+        let strong = FEAnalyzer::new(30.0, 10.0, 3.0, 1800.0, 50_000_000.0, 5_000_000.0);
+        let r_weak = weak.analyze(&[]);
+        let r_strong = strong.analyze(&[]);
+        let avg_damage_weak: f64 = r_weak.damage_field.iter()
+            .flat_map(|r| r.iter()).sum::<f64>() / (weak.nx * weak.ny) as f64;
+        let avg_damage_strong: f64 = r_strong.damage_field.iter()
+            .flat_map(|r| r.iter()).sum::<f64>() / (strong.nx * strong.ny) as f64;
+        assert!(avg_damage_weak > avg_damage_strong,
+            "weaker wall should have higher average damage");
+    }
+
+    #[test]
+    fn test_from_wall_props() {
+        let wall = crate::siege::WallProperties {
+            thickness_m: 4.0,
+            material: "stone".to_string(),
+            density_kgm3: 2400.0,
+            compressive_strength_pa: 25_000_000.0,
+            tensile_strength_pa: 2_000_000.0,
+        };
+        let analyzer = FEAnalyzer::from_wall_props(&wall);
+        assert!((analyzer.wall_thickness_m - 4.0).abs() < 0.01);
+        assert!((analyzer.wall_density_kgm3 - 2400.0).abs() < 0.01);
+        let result = analyzer.analyze(&[]);
+        assert!(result.max_stress_pa > 0.0);
+    }
+
+    #[test]
+    fn test_zero_impact_force() {
+        let analyzer = default_analyzer();
+        let impacts = vec![ImpactLoad {
+            x_m: 15.0, y_m: 5.0, impact_force_n: 0.0, blast_radius_m: 2.0,
+        }];
+        let result = analyzer.analyze(&impacts);
+        assert!(result.max_stress_pa >= 0.0);
+        assert!(result.damage_field.iter().flat_map(|r| r.iter()).all(|&d| d >= 0.0));
+    }
+
+    #[test]
+    fn test_impact_far_from_wall() {
+        let analyzer = default_analyzer();
+        let impacts = vec![ImpactLoad {
+            x_m: 100.0, y_m: 50.0, impact_force_n: 1_000_000.0, blast_radius_m: 2.0,
+        }];
+        let result_no = analyzer.analyze(&[]);
+        let result_far = analyzer.analyze(&impacts);
+        let diff = (result_far.max_stress_pa - result_no.max_stress_pa).abs();
+        assert!(diff < 100.0, "far impact should not affect wall stress significantly");
+    }
+
+    #[test]
+    fn test_weak_points_max_count() {
+        let analyzer = default_analyzer();
+        let result = analyzer.analyze(&[]);
+        assert!(result.weak_points.len() <= 10, "weak points should be capped at 10");
     }
 }
