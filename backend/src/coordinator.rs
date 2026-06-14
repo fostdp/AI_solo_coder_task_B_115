@@ -151,6 +151,10 @@ pub struct SiegeCoordinator {
 }
 
 impl SiegeCoordinator {
+    pub fn q_table_size(&self) -> usize {
+        self.learner.q_table.len()
+    }
+
     pub fn new(config: CoordinatorConfig, wall: WallProperties) -> Self {
         let learner = QLearner::new(config.clone());
         Self {
