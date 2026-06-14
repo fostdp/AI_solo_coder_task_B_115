@@ -45,6 +45,16 @@ class BallisticPanelController {
 
         this.trebuchetData = null;
 
+        this.ammoComparator = new AmmoComparatorComponent('ammoCompareBody');
+        this.wallWeaknessFinder = new WallWeaknessFinderComponent(
+            { querySelector: '.fea-container' } || { feaContainer: null, gaContainer: null },
+            null
+        );
+        this.wallWeaknessFinder.feaContainer = document.getElementById('feaPopup');
+        this.wallWeaknessFinder.gaContainer = document.getElementById('gaPopup');
+        this.salvoOptimizer = new SalvoOptimizerComponent('coordinateBody');
+        this.battleSimulator = new BattleSimulatorComponent('battleList', null);
+
         this.bindEvents();
         this.loadInitialData();
     }
@@ -425,18 +435,16 @@ class BallisticPanelController {
     async onAmmoCompare() {
         const tData = this.scene.findTrebuchetDataById(this.currentTrebuchetId);
         if (!tData) return;
-        try {
-            const response = await fetch(
-                `${API_BASE}/api/calc/ammo-compare?velocity=${this.params.velocity}` +
-                `&angle=${this.params.angle}&mass=${tData.projectile_kg}`
-            );
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.renderAmmoCompare(data.data);
-                document.getElementById('ammoComparePopup').classList.add('active');
-                return;
-            }
-        } catch (e) {}
+        this.ammoComparator.setParams({
+            velocity: this.params.velocity,
+            angle: this.params.angle,
+            mass: tData.projectile_kg,
+        });
+        const result = await this.ammoComparator.compare();
+        if (result) {
+            document.getElementById('ammoComparePopup').classList.add('active');
+            return;
+        }
         this.renderAmmoCompare(this.calcLocalAmmoCompare(tData));
         document.getElementById('ammoComparePopup').classList.add('active');
     }
@@ -479,20 +487,12 @@ class BallisticPanelController {
     async onAnalyzeWall() {
         const wall = this.wallTypes.find(w => w.id === this.currentWallId);
         if (!wall) return;
-        try {
-            const response = await fetch(
-                `${API_BASE}/api/calc/wall-stress?wall_thickness=${wall.thickness_m}` +
-                `&wall_density=${wall.density_kgm3}` +
-                `&wall_compressive_strength=${wall.compressive_strength_pa}` +
-                `&wall_tensile_strength=${wall.tensile_strength_pa}`
-            );
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.renderFEAResult(data.data);
-                document.getElementById('feaPopup').classList.add('active');
-                return;
-            }
-        } catch (e) {}
+        this.wallWeaknessFinder.setWall(wall);
+        const result = await this.wallWeaknessFinder.analyzeStress(wall);
+        if (result) {
+            document.getElementById('feaPopup').classList.add('active');
+            return;
+        }
         const localResult = this.calcLocalFEA(wall);
         this.renderFEAResult(localResult);
         document.getElementById('feaPopup').classList.add('active');
@@ -583,23 +583,16 @@ class BallisticPanelController {
         const tData = this.scene.findTrebuchetDataById(this.currentTrebuchetId);
         const wall = this.wallTypes.find(w => w.id === this.currentWallId);
         if (!tData || !wall) return;
-        try {
-            const impactE = 0.5 * tData.projectile_kg * this.params.velocity * this.params.velocity;
-            const response = await fetch(
-                `${API_BASE}/api/calc/weak-point?projectile_mass=${tData.projectile_kg}` +
-                `&impact_energy=${impactE}` +
-                `&wall_thickness=${wall.thickness_m}` +
-                `&wall_density=${wall.density_kgm3}` +
-                `&wall_compressive_strength=${wall.compressive_strength_pa}` +
-                `&ammo_type=${this.currentAmmoType}`
-            );
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.renderGAResult(data.data);
-                document.getElementById('gaPopup').classList.add('active');
-                return;
-            }
-        } catch (e) {}
+        this.wallWeaknessFinder.setWall(wall);
+        const result = await this.wallWeaknessFinder.findWeakPoint({
+            projectile_mass: tData.projectile_kg,
+            velocity: this.params.velocity,
+            ammo_type: this.currentAmmoType,
+        });
+        if (result) {
+            document.getElementById('gaPopup').classList.add('active');
+            return;
+        }
         this.renderGAResult({ best: { x_m: 15.0, y_m: 3.0, fitness: 75.0 }, convergence_data: Array.from({length: 50}, (_, i) => i * 1.5), total_generations: 50 });
         document.getElementById('gaPopup').classList.add('active');
     }
@@ -643,19 +636,14 @@ class BallisticPanelController {
     async onCoordinate() {
         const wall = this.wallTypes.find(w => w.id === this.currentWallId);
         if (!wall) return;
-        try {
-            const response = await fetch(
-                `${API_BASE}/api/calc/coordinate?wall_thickness=${wall.thickness_m}` +
-                `&wall_density=${wall.density_kgm3}` +
-                `&wall_compressive_strength=${wall.compressive_strength_pa}`
-            );
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.renderCoordinateResult(data.data);
-                document.getElementById('coordinatePopup').classList.add('active');
-                return;
-            }
-        } catch (e) {}
+        this.salvoOptimizer.setWall(wall);
+        const result = await this.salvoOptimizer.optimize({
+            trebuchet_count: (this.trebuchetData || MOCK_TREBUCHETS).length,
+        });
+        if (result) {
+            document.getElementById('coordinatePopup').classList.add('active');
+            return;
+        }
         const localResult = { assignments: (this.trebuchetData || MOCK_TREBUCHETS).slice(0, 5).map((t, i) => ({ trebuchet_id: t.id, target_x_m: 12 + i * 3, target_y_m: 5, ammo_type: 'RoundStone', expected_damage: 0.1 + i * 0.02, priority: 1.0 - i * 0.1 })), expected_total_damage: 0.7, coordination_efficiency: 0.14, q_table_size: 0, episodes_trained: 0 };
         this.renderCoordinateResult(localResult);
         document.getElementById('coordinatePopup').classList.add('active');
@@ -685,15 +673,13 @@ class BallisticPanelController {
     }
 
     async onBattle() {
-        try {
-            const response = await fetch(`${API_BASE}/api/battles`);
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.renderBattleList(data.data);
-                document.getElementById('battlePopup').classList.add('active');
-                return;
-            }
-        } catch (e) {}
+        this.battleSimulator.setTrebuchetData(this.trebuchetData || MOCK_TREBUCHETS);
+        this.battleSimulator.setCurrentAmmoType(this.currentAmmoType);
+        const battles = await this.battleSimulator.listBattles();
+        if (battles) {
+            document.getElementById('battlePopup').classList.add('active');
+            return;
+        }
         const localBattles = [
             { id: 1, name: '襄阳之战', year: 1267, description: '蒙古军队围攻南宋襄阳城', attacker: '蒙古帝国', defender: '南宋', attacker_trebuchets: [{ trebuchet_id: 1, name: '回回炮-甲', ammo_type: 'RoundStone', available_ammo: 200 }] },
             { id: 2, name: '君士坦丁堡之围', year: 1453, description: '奥斯曼帝国围攻君士坦丁堡', attacker: '奥斯曼帝国', defender: '拜占庭帝国', attacker_trebuchets: [{ trebuchet_id: 8, name: '无敌砲', ammo_type: 'RoundStone', available_ammo: 300 }] },
@@ -704,34 +690,17 @@ class BallisticPanelController {
     }
 
     renderBattleList(battles) {
-        let html = '';
-        battles.forEach(b => {
-            html += `<div class="battle-card" onclick="window.sim.panel.startBattle(${b.id})">
-                <div class="battle-name">${b.name}</div>
-                <div class="battle-year">${b.year}年</div>
-                <div class="battle-desc">${b.description}</div>
-            </div>`;
-        });
-        document.getElementById('battleList').innerHTML = html;
-        document.getElementById('battleUI').style.display = 'none';
-        document.getElementById('battleList').style.display = '';
+        this.battleSimulator.renderBattleList(battles);
     }
 
     async startBattle(id) {
-        try {
-            const response = await fetch(`${API_BASE}/api/battles/${id}/start`);
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.battleState = data.data;
-                try {
-                    const infoResp = await fetch(`${API_BASE}/api/battles/${id}`);
-                    const infoData = await infoResp.json();
-                    if (infoData.success && infoData.data) this.battleScenario = infoData.data;
-                } catch(e) {}
-                this.renderBattleUI();
-                return;
-            }
-        } catch (e) {}
+        const state = await this.battleSimulator.startBattle(id);
+        if (state) {
+            this.battleState = this.battleSimulator.battleState;
+            this.battleScenario = this.battleSimulator.battleScenario;
+            this.renderBattleUI();
+            return;
+        }
         this.battleState = { scenario_id: id, current_day: 1, wall_damage: 0, total_impacts: 0, successful_hits: 0, ammo_remaining: { 1: 200 }, is_victory: false, is_defeat: false, score: 0, impact_log: [] };
         this.battleScenario = { id, name: '战役', attacker_trebuchets: [{ trebuchet_id: 1, name: '回回炮-甲', available_ammo: 200 }], victory_conditions: { wall_breach_required: 0.6 } };
         this.renderBattleUI();
@@ -782,24 +751,17 @@ class BallisticPanelController {
 
     async battleFire(trebuchetId) {
         if (!this.battleState || this.battleState.is_victory || this.battleState.is_defeat) return;
+        const result = await this.battleSimulator.fire(trebuchetId);
+        if (result) {
+            this.battleState = this.battleSimulator.battleState;
+            this.renderBattleUI();
+            return;
+        }
         const ammo = this.battleState.ammo_remaining[trebuchetId] || 0;
         if (ammo <= 0) return;
         const targetX = 10 + Math.random() * 10;
         const targetY = 2 + Math.random() * 6;
         const damage = 0.02 + Math.random() * 0.08;
-        try {
-            const response = await fetch(
-                `${API_BASE}/api/battles/${this.battleState.scenario_id}/fire?trebuchet_id=${trebuchetId}` +
-                `&target_x=${targetX}&target_y=${targetY}&damage_ratio=${damage}` +
-                `&ammo_type=${this.currentAmmoType}`
-            );
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.battleState = data.data;
-                this.renderBattleUI();
-                return;
-            }
-        } catch (e) {}
         this.battleState.total_impacts += 1;
         this.battleState.successful_hits += 1;
         this.battleState.wall_damage += damage;
@@ -811,15 +773,12 @@ class BallisticPanelController {
 
     async battleAdvanceDay() {
         if (!this.battleState || this.battleState.is_victory || this.battleState.is_defeat) return;
-        try {
-            const response = await fetch(`${API_BASE}/api/battles/${this.battleState.scenario_id}/advance`);
-            const data = await response.json();
-            if (data.success && data.data) {
-                this.battleState = data.data;
-                this.renderBattleUI();
-                return;
-            }
-        } catch (e) {}
+        const result = await this.battleSimulator.advanceDay();
+        if (result) {
+            this.battleState = this.battleSimulator.battleState;
+            this.renderBattleUI();
+            return;
+        }
         this.battleState.current_day += 1;
         if (this.battleState.current_day > 30 && !this.battleState.is_victory) this.battleState.is_defeat = true;
         this.renderBattleUI();
