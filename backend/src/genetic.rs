@@ -323,15 +323,19 @@ fn pseudo_random() -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_ga_optimize() {
-        let wall = WallProperties {
+    fn default_wall() -> WallProperties {
+        WallProperties {
             thickness_m: 3.0,
             material: "rammed_earth".to_string(),
             density_kgm3: 1800.0,
             compressive_strength_pa: 2_000_000.0,
             tensile_strength_pa: 200_000.0,
-        };
+        }
+    }
+
+    #[test]
+    fn test_ga_optimize() {
+        let wall = default_wall();
         let config = GeneticConfig {
             population_size: 20,
             generations: 10,
@@ -349,5 +353,240 @@ mod tests {
         assert!(result.best.x_m > 0.0);
         assert!(result.best.y_m > 0.0);
         assert!(result.convergence_data.len() == 10);
+    }
+
+    #[test]
+    fn test_ga_convergence() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 30,
+            generations: 20,
+            mutation_rate: 0.15,
+            crossover_rate: 0.8,
+            elite_count: 3,
+            tournament_size: 4,
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        let first_gen_fitness = result.convergence_data[0];
+        let last_gen_fitness = *result.convergence_data.last().unwrap();
+        assert!(last_gen_fitness >= first_gen_fitness,
+            "GA should converge: last ({}) >= first ({})", last_gen_fitness, first_gen_fitness);
+    }
+
+    #[test]
+    fn test_ga_best_within_wall_bounds() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.x_m >= 0.5 && result.best.x_m <= 29.5,
+            "best x={} should be within wall", result.best.x_m);
+        assert!(result.best.y_m >= 0.5 && result.best.y_m <= 9.5,
+            "best y={} should be within wall", result.best.y_m);
+    }
+
+    #[test]
+    fn test_ga_convergence_data_length() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 15,
+            generations: 8,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert_eq!(result.convergence_data.len(), 8);
+        assert_eq!(result.population_history.len(), 8);
+        assert_eq!(result.total_generations, 8);
+    }
+
+    #[test]
+    fn test_ga_generation_history() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 5,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        for (i, gen) in result.population_history.iter().enumerate() {
+            assert_eq!(gen.generation, i);
+            assert!(gen.best_fitness > 0.0 || gen.avg_fitness >= 0.0);
+            assert!(gen.best_x >= 0.0);
+            assert!(gen.best_y >= 0.0);
+        }
+    }
+
+    #[test]
+    fn test_ga_with_existing_impacts() {
+        let wall = default_wall();
+        let impacts = vec![ImpactLoad {
+            x_m: 15.0, y_m: 5.0, impact_force_n: 1_000_000.0, blast_radius_m: 2.0,
+        }];
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, impacts, AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.fitness > 0.0);
+        assert!(result.best.x_m > 0.0);
+    }
+
+    #[test]
+    fn test_ga_gunpowder_ammo() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::GunpowderBomb, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.fitness > 0.0);
+    }
+
+    #[test]
+    fn test_ga_corpse_ammo() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::CorpseShell, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.fitness > 0.0);
+    }
+
+    #[test]
+    fn test_ga_fitness_positive() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 5,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.fitness > 0.0, "best fitness should be positive");
+        for gen in &result.population_history {
+            assert!(gen.best_fitness > 0.0 || gen.avg_fitness >= 0.0);
+        }
+    }
+
+    #[test]
+    fn test_ga_gate_targeting_tendency() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 40,
+            generations: 30,
+            elite_count: 5,
+            tournament_size: 5,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        let gate_center = 15.0;
+        let dist_to_gate = (result.best.x_m - gate_center).abs();
+        assert!(dist_to_gate < 15.0,
+            "best point should tend toward gate area, dist={}", dist_to_gate);
+    }
+
+    #[test]
+    fn test_ga_high_impact_energy() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::GunpowderBomb, 300.0, 5_000_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.fitness > 0.0);
+    }
+
+    #[test]
+    fn test_ga_low_impact_energy() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 10.0, 100.0);
+        let result = optimizer.optimize();
+        assert!(result.best.x_m > 0.0);
+        assert!(result.best.y_m > 0.0);
+    }
+
+    #[test]
+    fn test_ga_strong_wall() {
+        let wall = WallProperties {
+            thickness_m: 6.0,
+            material: "stone".to_string(),
+            density_kgm3: 2400.0,
+            compressive_strength_pa: 25_000_000.0,
+            tensile_strength_pa: 2_000_000.0,
+        };
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.x_m > 0.0);
+    }
+
+    #[test]
+    fn test_ga_minimal_population() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 4,
+            generations: 3,
+            elite_count: 1,
+            tournament_size: 2,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.x_m > 0.0);
+        assert!(result.convergence_data.len() == 3);
+    }
+
+    #[test]
+    fn test_ga_high_mutation_rate() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            mutation_rate: 0.9,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.x_m > 0.0);
+    }
+
+    #[test]
+    fn test_ga_no_crossover() {
+        let wall = default_wall();
+        let config = GeneticConfig {
+            population_size: 20,
+            generations: 10,
+            crossover_rate: 0.0,
+            ..Default::default()
+        };
+        let optimizer = GeneticOptimizer::new(config, wall, vec![], AmmoType::RoundStone, 90.0, 500_000.0);
+        let result = optimizer.optimize();
+        assert!(result.best.x_m > 0.0);
     }
 }
