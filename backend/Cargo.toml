@@ -1,0 +1,17 @@
+[package]
+name = "siege-sim-backend"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+axum = "0.6"
+tower-http = { version = "0.4", features = ["cors", "compression-gzip", "trace"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+metrics-util = "0.15"
