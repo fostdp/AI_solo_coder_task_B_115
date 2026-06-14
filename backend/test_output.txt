@@ -1,0 +1,444 @@
+﻿cargo : warning: unused import: `simulate_ballistics_with_ammo`
+所在位置 行:1 字符: 88
++ ... coder_task_B_115\backend; cargo test -- --test-threads=1 2>&1 | Out-F ...
++                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: unused...tics_with_ammo` 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ --> src\api.rs:2:56
+  |
+2 |     estimate_projectile_diameter, simulate_ballistics, simulate_ballistics_
+with_ammo, BallisticInput, stone_density,
+  |                                                        ^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `AmmoProfile`
+ --> src\api.rs:5:35
+  |
+5 | use crate::ammo::{self, AmmoType, AmmoProfile, AmmoComparison};
+  |                                   ^^^^^^^^^^^
+
+warning: unused import: `ImpactLoad`
+ --> src\api.rs:6:41
+  |
+6 | use crate::fea::{FEAnalyzer, FEAResult, ImpactLoad};
+  |                                         ^^^^^^^^^^
+
+warning: unused import: `crate::ammo::AmmoType`
+ --> src\storage.rs:3:5
+  |
+3 | use crate::ammo::AmmoType;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Layer` and `PrefixLayer`
+ --> src\metrics.rs:3:28
+  |
+3 | use metrics_util::layers::{PrefixLayer, Layer};
+  |                            ^^^^^^^^^^^  ^^^^^
+
+warning: unused imports: `debug`, `error`, and `info`
+  --> src\udp_receiver.rs:10:15
+   |
+10 | use tracing::{debug, info, warn, error};
+   |               ^^^^^  ^^^^        ^^^^^
+
+warning: unused import: `error`
+  --> src\ballistic_simulator.rs:14:34
+   |
+14 | use tracing::{debug, info, warn, error};
+   |                                  ^^^^^
+
+warning: unused import: `error`
+  --> src\siege_evaluator.rs:13:34
+   |
+13 | use tracing::{debug, info, warn, error};
+   |                                  ^^^^^
+
+warning: variable does not need to be mutable
+   --> src\storage.rs:203:13
+    |
+203 |         let mut trebuchets = vec![
+    |             ----^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `input`
+   --> src\ballistics.rs:333:9
+    |
+333 |     let input = BallisticInput {
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore:
+ `_input`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by defau
+lt
+
+warning: value assigned to `max_mach` is never read
+   --> src\ballistics.rs:392:24
+    |
+392 |     let mut max_mach = 0.0;
+    |                        ^^^ this value is reassigned later and never used
+...
+422 |     max_mach = initial_mach;
+    |     ----------------------- `max_mach` is overwritten here before the pre
+vious value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by def
+ault
+
+warning: unused variable: `projectile_radius`
+  --> src\siege.rs:49:9
+   |
+49 |     let projectile_radius = input.projectile_diameter_m / 2.0;
+   |         ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an 
+underscore: `_projectile_radius`
+
+warning: unused variable: `cross_section`
+   --> src\ammo.rs:112:13
+    |
+112 |         let cross_section = std::f64::consts::PI * (diameter / 2.0).powi(
+2);
+    |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an
+ underscore: `_cross_section`
+
+warning: unused variable: `existing_impacts`
+   --> src\coordinator.rs:219:9
+    |
+219 |         existing_impacts: &[ImpactLoad],
+    |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an 
+underscore: `_existing_impacts`
+
+warning: type `BufferLimits` is more private than the item `StorageLimitsRef::0
+`
+   --> src\storage.rs:105:29
+    |
+105 | pub struct StorageLimitsRef(pub BufferLimits);
+    |                             ^^^^^^^^^^^^^^^^ field `StorageLimitsRef::0` 
+is reachable at visibility `pub(crate)`
+    |
+note: but type `BufferLimits` is only usable at visibility `pub(self)`
+   --> src\storage.rs:88:1
+    |
+ 88 | struct BufferLimits {
+    | ^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `BallisticsRecord` is more private than the item `Database::get_r
+ecent_ballistics`
+   --> src\storage.rs:408:5
+    |
+408 |     pub async fn get_recent_ballistics(&self, trebuchet_id: u32, limit: u
+size) -> Vec<BallisticsRecord> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method `Database::get_recent_ballistics` is reac
+hable at visibility `pub(crate)`
+    |
+note: but type `BallisticsRecord` is only usable at visibility `pub(self)`
+   --> src\storage.rs:57:1
+    |
+ 57 | struct BallisticsRecord {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `SiegeRecord` is more private than the item `Database::get_recent
+_siege`
+   --> src\storage.rs:419:5
+    |
+419 |     pub async fn get_recent_siege(&self, trebuchet_id: u32, limit: usize)
+ -> Vec<SiegeRecord> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^ method `Database::get_recent_siege` is reachable at visibi
+lity `pub(crate)`
+    |
+note: but type `SiegeRecord` is only usable at visibility `pub(self)`
+   --> src\storage.rs:71:1
+    |
+ 71 | struct SiegeRecord {
+    | ^^^^^^^^^^^^^^^^^^
+
+warning: field `wall_tensile_strength` is never read
+  --> src\api.rs:86:9
+   |
+80 | pub struct GAQuery {
+   |            ------- field in this struct
+...
+86 |     pub wall_tensile_strength: Option<f64>,
+   |         ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `GAQuery` has a derived impl for the trait `Debug`, but this is inte
+ntionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `compute_derivatives` is never used
+   --> src\ballistics.rs:153:4
+    |
+153 | fn compute_derivatives(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `rk4_step` is never used
+   --> src\ballistics.rs:199:4
+    |
+199 | fn rk4_step(
+    |    ^^^^^^^^
+
+warning: fields `sensor`, `ballistics`, and `siege` are never read
+  --> src\storage.rs:89:5
+   |
+88 | struct BufferLimits {
+   |        ------------ fields in this struct
+89 |     sensor: usize,
+   |     ^^^^^^
+90 |     ballistics: usize,
+   |     ^^^^^^^^^^
+91 |     siege: usize,
+   |     ^^^^^
+   |
+   = note: `BufferLimits` has derived impls for the traits `Clone` and `Debug`,
+ but these are intentionally ignored during dead code analysis
+
+warning: struct `StorageLimitsRef` is never constructed
+   --> src\storage.rs:105:12
+    |
+105 | pub struct StorageLimitsRef(pub BufferLimits);
+    |            ^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `get_wall_by_id`, `get_recent_ballistics`, `ge
+t_recent_siege`, `get_all_sensor_data`, and `get_all_battle_states` are never u
+sed
+   --> src\storage.rs:108:12
+    |
+107 | impl Database {
+    | ------------- associated items in this implementation
+108 |     pub fn new() -> Self {
+    |            ^^^
+...
+193 |     pub async fn get_wall_by_id(&self, id: u32) -> Option<WallType> {
+    |                  ^^^^^^^^^^^^^^
+...
+408 |     pub async fn get_recent_ballistics(&self, trebuchet_id: u32, limit: u
+size) -> Vec<BallisticsRecord> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+...
+419 |     pub async fn get_recent_siege(&self, trebuchet_id: u32, limit: usize)
+ -> Vec<SiegeRecord> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+430 |     pub async fn get_all_sensor_data(&self) -> Vec<SensorData> {
+    |                  ^^^^^^^^^^^^^^^^^^^
+...
+442 |     pub async fn get_all_battle_states(&self) -> HashMap<u32, BattleState
+> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_http_requests` is never used
+  --> src\metrics.rs:98:8
+   |
+98 | pub fn increment_http_requests(method: &str, path: &str) {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `record_http_duration` is never used
+   --> src\metrics.rs:102:8
+    |
+102 | pub fn record_http_duration(method: &str, path: &str, start: Instant) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_sensor_buffer_size` is never used
+   --> src\metrics.rs:111:8
+    |
+111 | pub fn gauge_sensor_buffer_size(size: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_ballistics_buffer_size` is never used
+   --> src\metrics.rs:115:8
+    |
+115 | pub fn gauge_ballistics_buffer_size(size: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_siege_buffer_size` is never used
+   --> src\metrics.rs:119:8
+    |
+119 | pub fn gauge_siege_buffer_size(size: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_ammo_comparisons` is never used
+   --> src\metrics.rs:123:8
+    |
+123 | pub fn increment_ammo_comparisons() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_fea_analyses` is never used
+   --> src\metrics.rs:127:8
+    |
+127 | pub fn increment_fea_analyses() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `record_fea_duration` is never used
+   --> src\metrics.rs:131:8
+    |
+131 | pub fn record_fea_duration(start: Instant) {
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_ga_optimizations` is never used
+   --> src\metrics.rs:135:8
+    |
+135 | pub fn increment_ga_optimizations() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `record_ga_duration` is never used
+   --> src\metrics.rs:139:8
+    |
+139 | pub fn record_ga_duration(start: Instant) {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_ga_best_fitness` is never used
+   --> src\metrics.rs:143:8
+    |
+143 | pub fn gauge_ga_best_fitness(fitness: f64) {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_coordinator_assignments` is never used
+   --> src\metrics.rs:147:8
+    |
+147 | pub fn increment_coordinator_assignments(count: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_battles_started` is never used
+   --> src\metrics.rs:151:8
+    |
+151 | pub fn increment_battles_started() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_battle_impacts` is never used
+   --> src\metrics.rs:155:8
+    |
+155 | pub fn increment_battle_impacts() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_active_battles` is never used
+   --> src\metrics.rs:159:8
+    |
+159 | pub fn gauge_active_battles(count: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: field `source_addr` is never read
+  --> src\udp_receiver.rs:27:9
+   |
+26 | pub struct SensorEnvelope {
+   |            -------------- field in this struct
+27 |     pub source_addr: SocketAddr,
+   |         ^^^^^^^^^^^
+   |
+   = note: `SensorEnvelope` has derived impls for the traits `Clone` and `Debug
+`, but these are intentionally ignored during dead code analysis
+
+warning: function `build_frame` is never used
+   --> src\udp_receiver.rs:173:8
+    |
+173 | pub fn build_frame(payload: &[u8], seq_num: u32, config: &UdpConfig) -> V
+ec<u8> {
+    |        ^^^^^^^^^^^
+
+warning: associated constant `MATERIAL` is never used
+   --> src\siege_evaluator.rs:167:11
+    |
+165 | impl DefaultWall {
+    | ---------------- associated constant in this implementation
+166 |     const THICKNESS: f64 = 3.0;
+167 |     const MATERIAL: &'static str = "rammed_earth";
+    |           ^^^^^^^^
+
+warning: method `clone` is never used
+   --> src\siege_evaluator.rs:190:8
+    |
+189 | impl DefaultWallStruct {
+    | ---------------------- method in this implementation
+190 |     fn clone(&self) -> WallProperties {
+    |        ^^^^^
+
+warning: function `build_frame` is never used
+   --> src\udp_server.rs:162:8
+    |
+162 | pub fn build_frame(payload: &[u8], seq_num: u32) -> Vec<u8> {
+    |        ^^^^^^^^^^^
+
+warning: methods `name_zh` and `description` are never used
+  --> src\ammo.rs:73:12
+   |
+16 | impl AmmoType {
+   | ------------- methods in this implementation
+...
+73 |     pub fn name_zh(&self) -> &str {
+   |            ^^^^^^^
+...
+81 |     pub fn description(&self) -> &str {
+   |            ^^^^^^^^^^^
+
+warning: struct `TrainingEpisode` is never constructed
+  --> src\coordinator.rs:80:12
+   |
+80 | pub struct TrainingEpisode {
+   |            ^^^^^^^^^^^^^^^
+
+warning: methods `update` and `decay_exploration` are never used
+   --> src\coordinator.rs:118:12
+    |
+ 93 | impl QLearner {
+    | ------------- methods in this implementation
+...
+118 |     pub fn update(&mut self, state_key: u64, action: usize, reward: f64, 
+next_state_key: u64, num_actions: usize) {
+    |            ^^^^^^
+...
+134 |     pub fn decay_exploration(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^
+
+warning: fields `config` and `wall` are never read
+   --> src\coordinator.rs:145:5
+    |
+144 | pub struct SiegeCoordinator {
+    |            ---------------- fields in this struct
+145 |     config: CoordinatorConfig,
+    |     ^^^^^^
+146 |     learner: QLearner,
+147 |     wall: WallProperties,
+    |     ^^^^
+
+warning: methods `train_episode`, `compute_reward`, and `simulate_impact` are n
+ever used
+   --> src\coordinator.rs:215:12
+    |
+151 | impl SiegeCoordinator {
+    | --------------------- methods in this implementation
+...
+215 |     pub fn train_episode(
+    |            ^^^^^^^^^^^^^
+...
+321 |     fn compute_reward(
+    |        ^^^^^^^^^^^^^^
+...
+350 |     fn simulate_impact(
+    |        ^^^^^^^^^^^^^^^
+
+warning: method `has_ammo` is never used
+   --> src\battles.rs:145:12
+    |
+ 84 | impl BattleState {
+    | ---------------- method in this implementation
+...
+145 |     pub fn has_ammo(&self, trebuchet_id: u32) -> bool {
+    |            ^^^^^^^^
+
+warning: `siege-sim-backend` (bin "siege-sim-backend" test) generated 49 warnin
+gs (run `cargo fix --bin "siege-sim-backend" -p siege-sim-backend --tests` to a
+pply 13 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.29s
+     Running unittests src\main.rs (target\debug\deps\siege_sim_backend-3b00ee9
+6a1bb3a13.exe)
+
+running 15 tests
+test ammo::tests::test_ammo_profiles ... ok
+test ammo::tests::test_corpse_contamination ... ok
+test ammo::tests::test_gunpowder_explosive_yield ... ok
