@@ -13,6 +13,7 @@ pub struct CoordinatorConfig {
     pub min_exploration_rate: f64,
     pub state_bins: usize,
     pub target_zones: usize,
+    pub use_fast_dynamics: bool,
 }
 
 impl Default for CoordinatorConfig {
@@ -25,6 +26,7 @@ impl Default for CoordinatorConfig {
             min_exploration_rate: 0.01,
             state_bins: 10,
             target_zones: 9,
+            use_fast_dynamics: true,
         }
     }
 }
@@ -373,6 +375,155 @@ impl SiegeCoordinator {
             })
             .collect()
     }
+
+    pub fn fast_estimate_impact(
+        &self,
+        target_x: f64,
+        target_y: f64,
+        ammo: AmmoType,
+        mass_kg: f64,
+        velocity: f64,
+    ) -> FastImpactResult {
+        let range_factor = if velocity > 0.0 {
+            let theoretical_range = velocity * velocity / 9.81;
+            (30.0 / theoretical_range).min(1.0)
+        } else {
+            0.5
+        };
+
+        let base_damage = match ammo {
+            AmmoType::RoundStone => 0.03,
+            AmmoType::GunpowderBomb => 0.08,
+            AmmoType::CorpseShell => 0.02,
+        };
+
+        let height_factor = 1.0 - (target_y / 10.0).min(0.8) * 0.3;
+        let damage = base_damage * range_factor * height_factor;
+
+        let blast_r = match ammo {
+            AmmoType::RoundStone => 1.0,
+            AmmoType::GunpowderBomb => 4.0,
+            AmmoType::CorpseShell => 3.0,
+        };
+
+        FastImpactResult {
+            damage_ratio: damage,
+            impact_energy: 0.5 * mass_kg * velocity * velocity * range_factor,
+            blast_radius: blast_r,
+            stress_increase: damage * 2.0,
+        }
+    }
+
+    fn fast_simulate_impact(
+        &self,
+        regions: &[WallRegionState],
+        impact_x: f64,
+        impact_y: f64,
+        fast_result: &FastImpactResult,
+    ) -> Vec<WallRegionState> {
+        regions
+            .iter()
+            .map(|r| {
+                let dx = (r.x_m - impact_x).abs();
+                let dy = (r.y_m - impact_y).abs();
+                let dist = (dx * dx + dy * dy).sqrt();
+                let attenuation = (-dist / fast_result.blast_radius.max(0.5)).exp();
+                let new_damage = (r.damage_ratio + fast_result.damage_ratio * attenuation).min(1.0);
+                WallRegionState {
+                    damage_ratio: new_damage,
+                    stress_ratio: (r.stress_ratio + fast_result.stress_increase * attenuation).min(1.0),
+                    ..r.clone()
+                }
+            })
+            .collect()
+    }
+
+    pub fn train_episode_fast(
+        &mut self,
+        trebuchets: &[TrebuchetState],
+        wall_regions: &[WallRegionState],
+    ) -> TrainingEpisode {
+        let state_key = self.encode_state(wall_regions);
+        let num_actions = self.num_target_zones;
+
+        let mut ep_assignments = Vec::new();
+        let mut total_reward = 0.0;
+        let mut current_regions = wall_regions.to_vec();
+
+        for t in trebuchets {
+            let action = self.learner.choose_action(state_key, num_actions);
+            let (target_x, target_y) = self.decode_action(action);
+
+            let fast_result = self.fast_estimate_impact(
+                target_x, target_y, t.ammo_type, 90.0, 50.0
+            );
+
+            let reward = self.compute_fast_reward(target_x, target_y, &current_regions, &fast_result);
+
+            let next_regions = self.fast_simulate_impact(&current_regions, target_x, target_y, &fast_result);
+            let next_state_key = self.encode_state(&next_regions);
+
+            self.learner.update(state_key, action, reward, next_state_key, num_actions);
+
+            ep_assignments.push(TrebuchetAssignment {
+                trebuchet_id: t.id,
+                target_x_m: target_x,
+                target_y_m: target_y,
+                ammo_type: t.ammo_type,
+                expected_damage: fast_result.damage_ratio,
+                priority: reward,
+            });
+
+            total_reward += reward;
+            current_regions = next_regions;
+        }
+
+        self.learner.decay_exploration();
+        self.learner.episodes_trained += 1;
+
+        TrainingEpisode {
+            episode: self.learner.episodes_trained,
+            total_reward,
+            assignments: ep_assignments,
+        }
+    }
+
+    fn compute_fast_reward(
+        &self,
+        target_x: f64,
+        target_y: f64,
+        regions: &[WallRegionState],
+        fast_result: &FastImpactResult,
+    ) -> f64 {
+        let mut reward = fast_result.damage_ratio * 100.0;
+
+        for r in regions {
+            let dx = (r.x_m - target_x).abs();
+            let dy = (r.y_m - target_y).abs();
+            if dx < r.width_m && dy < r.height_m {
+                reward += r.strategic_value * 20.0;
+                if r.damage_ratio > 0.5 {
+                    reward += 15.0 * r.damage_ratio;
+                }
+            }
+        }
+
+        let gate_center = 15.0;
+        let gate_dist = (target_x - gate_center).abs();
+        if gate_dist < 5.0 {
+            reward += 10.0 * (1.0 - gate_dist / 5.0);
+        }
+
+        reward
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FastImpactResult {
+    pub damage_ratio: f64,
+    pub impact_energy: f64,
+    pub blast_radius: f64,
+    pub stress_increase: f64,
 }
 
 fn pseudo_random_f64() -> f64 {
