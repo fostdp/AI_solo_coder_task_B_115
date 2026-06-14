@@ -1,0 +1,87 @@
+version: "3.8"
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: siege-clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./clickhouse/config.d:/etc/clickhouse-server/config.d:ro
+    environment:
+      CLICKHOUSE_DB: siege_sim
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - siege-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: siege-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "9001:9001/udp"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      RUST_LOG: info
+      RUST_BACKTRACE: "1"
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_DB: siege_sim
+    networks:
+      - siege-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: siege-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - siege-net
+
+  simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: siege-simulator
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      SIM_HOST: backend
+      SIM_PORT: "9001"
+      SIM_INTERVAL: "60"
+      SIM_MODE: random
+    command: ["--host", "backend", "--port", "9001", "--interval", "60", "--mode", "random"]
+    networks:
+      - siege-net
+
+volumes:
+  clickhouse_data:
+
+networks:
+  siege-net:
+    driver: bridge
