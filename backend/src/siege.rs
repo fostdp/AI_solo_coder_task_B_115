@@ -258,15 +258,19 @@ fn estimate_impact_energy(velocity: f64, angle_deg: f64, mass_kg: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_siege_assessment() {
-        let wall = WallProperties {
+    fn default_wall() -> WallProperties {
+        WallProperties {
             thickness_m: 3.0,
             material: "rammed_earth".to_string(),
             density_kgm3: 1800.0,
             compressive_strength_pa: 2_000_000.0,
             tensile_strength_pa: 200_000.0,
-        };
+        }
+    }
+
+    #[test]
+    fn test_siege_assessment() {
+        let wall = default_wall();
 
         let input = SiegeInput {
             impact_energy_j: 500_000.0,
@@ -285,13 +289,7 @@ mod tests {
 
     #[test]
     fn test_optimize_parameters() {
-        let wall = WallProperties {
-            thickness_m: 3.0,
-            material: "rammed_earth".to_string(),
-            density_kgm3: 1800.0,
-            compressive_strength_pa: 2_000_000.0,
-            tensile_strength_pa: 200_000.0,
-        };
+        let wall = default_wall();
 
         let (angle, velocity, score) = optimize_launch_parameters(
             90.0,
@@ -306,5 +304,226 @@ mod tests {
         assert!(angle >= 30.0 && angle <= 60.0);
         assert!(velocity >= 30.0 && velocity <= 60.0);
         assert!(score > 0.0);
+    }
+
+    #[test]
+    fn test_gunpowder_bomb_damage() {
+        let wall = default_wall();
+        let input_stone = SiegeInput {
+            impact_energy_j: 500_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall: wall.clone(),
+            ammo_type: AmmoType::RoundStone,
+        };
+        let input_gunpowder = SiegeInput {
+            impact_energy_j: 500_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall,
+            ammo_type: AmmoType::GunpowderBomb,
+        };
+        let result_stone = assess_siege_damage(&input_stone);
+        let result_gunpowder = assess_siege_damage(&input_gunpowder);
+        assert!(result_gunpowder.explosive_damage_ratio > 0.0,
+            "gunpowder bomb should have explosive damage");
+        assert_eq!(result_stone.explosive_damage_ratio, 0.0);
+        assert!(result_gunpowder.damage_ratio > result_stone.damage_ratio,
+            "gunpowder should deal more total damage than stone");
+        assert!(result_gunpowder.blast_radius_m > 0.0);
+    }
+
+    #[test]
+    fn test_corpse_shell_contamination() {
+        let wall = default_wall();
+        let input = SiegeInput {
+            impact_energy_j: 500_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall,
+            ammo_type: AmmoType::CorpseShell,
+        };
+        let result = assess_siege_damage(&input);
+        assert!(result.contamination_damage_ratio > 0.0,
+            "corpse shell should have contamination damage");
+        assert!(result.contamination_radius_m > 0.0);
+        assert_eq!(result.explosive_damage_ratio, 0.0);
+    }
+
+    #[test]
+    fn test_ammo_type_in_assessment() {
+        let wall = default_wall();
+        for ammo in AmmoType::all() {
+            let input = SiegeInput {
+                impact_energy_j: 500_000.0,
+                projectile_mass_kg: 90.0,
+                projectile_diameter_m: 0.4,
+                impact_angle_deg: 45.0,
+                wall: wall.clone(),
+                ammo_type: ammo,
+            };
+            let result = assess_siege_damage(&input);
+            assert_eq!(result.ammo_type, ammo, "ammo type should be preserved in assessment");
+        }
+    }
+
+    #[test]
+    fn test_damage_ratio_bounded() {
+        let wall = default_wall();
+        for ammo in AmmoType::all() {
+            let input = SiegeInput {
+                impact_energy_j: 10_000_000.0,
+                projectile_mass_kg: 300.0,
+                projectile_diameter_m: 0.6,
+                impact_angle_deg: 45.0,
+                wall: wall.clone(),
+                ammo_type: ammo,
+            };
+            let result = assess_siege_damage(&input);
+            assert!(result.damage_ratio >= 0.0 && result.damage_ratio <= 1.0,
+                "damage_ratio {:?} = {} out of [0,1]", ammo, result.damage_ratio);
+        }
+    }
+
+    #[test]
+    fn test_effectiveness_score_bounded() {
+        let wall = default_wall();
+        for ammo in AmmoType::all() {
+            let input = SiegeInput {
+                impact_energy_j: 500_000.0,
+                projectile_mass_kg: 90.0,
+                projectile_diameter_m: 0.4,
+                impact_angle_deg: 45.0,
+                wall: wall.clone(),
+                ammo_type: ammo,
+            };
+            let result = assess_siege_damage(&input);
+            assert!(result.effectiveness_score >= 0.0 && result.effectiveness_score <= 100.0,
+                "effectiveness {:?} = {} out of [0,100]", ammo, result.effectiveness_score);
+        }
+    }
+
+    #[test]
+    fn test_damage_classification() {
+        assert_eq!(classify_damage(0.95), "完全摧毁");
+        assert_eq!(classify_damage(0.75), "严重破坏");
+        assert_eq!(classify_damage(0.55), "中等破坏");
+        assert_eq!(classify_damage(0.35), "轻度破坏");
+        assert_eq!(classify_damage(0.15), "表面损伤");
+        assert_eq!(classify_damage(0.05), "无明显损伤");
+    }
+
+    #[test]
+    fn test_siege_input_default_ammo() {
+        let json = r#"{"impact_energy_j":500000,"projectile_mass_kg":90,"projectile_diameter_m":0.4,"impact_angle_deg":45,"wall":{"thickness_m":3,"material":"rammed_earth","density_kgm3":1800,"compressive_strength_pa":2000000,"tensile_strength_pa":200000}}"#;
+        let input: SiegeInput = serde_json::from_str(json).unwrap();
+        assert_eq!(input.ammo_type, AmmoType::RoundStone);
+    }
+
+    #[test]
+    fn test_strong_wall_less_damage() {
+        let weak_wall = WallProperties {
+            thickness_m: 3.0,
+            material: "rammed_earth".to_string(),
+            density_kgm3: 1800.0,
+            compressive_strength_pa: 2_000_000.0,
+            tensile_strength_pa: 200_000.0,
+        };
+        let strong_wall = WallProperties {
+            thickness_m: 6.0,
+            material: "stone".to_string(),
+            density_kgm3: 2400.0,
+            compressive_strength_pa: 25_000_000.0,
+            tensile_strength_pa: 2_000_000.0,
+        };
+        let input_weak = SiegeInput {
+            impact_energy_j: 500_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall: weak_wall,
+            ammo_type: AmmoType::RoundStone,
+        };
+        let input_strong = SiegeInput {
+            impact_energy_j: 500_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall: strong_wall,
+            ammo_type: AmmoType::RoundStone,
+        };
+        let r_weak = assess_siege_damage(&input_weak);
+        let r_strong = assess_siege_damage(&input_strong);
+        assert!(r_weak.damage_ratio > r_strong.damage_ratio,
+            "weaker wall should have more damage");
+    }
+
+    #[test]
+    fn test_higher_energy_more_damage() {
+        let wall = default_wall();
+        let input_low = SiegeInput {
+            impact_energy_j: 100_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall: wall.clone(),
+            ammo_type: AmmoType::RoundStone,
+        };
+        let input_high = SiegeInput {
+            impact_energy_j: 5_000_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall,
+            ammo_type: AmmoType::RoundStone,
+        };
+        let r_low = assess_siege_damage(&input_low);
+        let r_high = assess_siege_damage(&input_high);
+        assert!(r_high.damage_ratio > r_low.damage_ratio);
+        assert!(r_high.effectiveness_score > r_low.effectiveness_score);
+    }
+
+    #[test]
+    fn test_gunpowder_effectiveness_bonus() {
+        let wall = default_wall();
+        let input_stone = SiegeInput {
+            impact_energy_j: 500_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall: wall.clone(),
+            ammo_type: AmmoType::RoundStone,
+        };
+        let input_gunpowder = SiegeInput {
+            impact_energy_j: 500_000.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall,
+            ammo_type: AmmoType::GunpowderBomb,
+        };
+        let r_stone = assess_siege_damage(&input_stone);
+        let r_gunpowder = assess_siege_damage(&input_gunpowder);
+        assert!(r_gunpowder.effectiveness_score >= r_stone.effectiveness_score,
+            "gunpowder should have >= effectiveness than stone");
+    }
+
+    #[test]
+    fn test_zero_impact_energy() {
+        let wall = default_wall();
+        let input = SiegeInput {
+            impact_energy_j: 0.0,
+            projectile_mass_kg: 90.0,
+            projectile_diameter_m: 0.4,
+            impact_angle_deg: 45.0,
+            wall,
+            ammo_type: AmmoType::RoundStone,
+        };
+        let result = assess_siege_damage(&input);
+        assert!(result.damage_ratio >= 0.0 && result.damage_ratio <= 1.0);
+        assert!(result.crater_depth_m > 0.0 || result.damage_ratio == 0.0);
     }
 }
