@@ -22,19 +22,23 @@ impl AmmoType {
         }
     }
 
-    pub fn drag_modifier(&self) -> f64 {
+    pub fn base_drag_coefficient(&self) -> f64 {
         match self {
-            AmmoType::RoundStone => 1.0,
-            AmmoType::GunpowderBomb => 1.35,
-            AmmoType::CorpseShell => 1.8,
+            AmmoType::RoundStone => 0.47,
+            AmmoType::GunpowderBomb => 0.72,
+            AmmoType::CorpseShell => 1.15,
         }
+    }
+
+    pub fn drag_modifier(&self) -> f64 {
+        self.base_drag_coefficient() / 0.47
     }
 
     pub fn shape_factor(&self) -> f64 {
         match self {
             AmmoType::RoundStone => 1.0,
-            AmmoType::GunpowderBomb => 0.85,
-            AmmoType::CorpseShell => 0.65,
+            AmmoType::GunpowderBomb => 0.88,
+            AmmoType::CorpseShell => 0.62,
         }
     }
 
@@ -88,6 +92,64 @@ impl AmmoType {
 
     pub fn all() -> Vec<AmmoType> {
         vec![AmmoType::RoundStone, AmmoType::GunpowderBomb, AmmoType::CorpseShell]
+    }
+
+    pub fn drag_coefficient_at_reynolds(&self, reynolds: f64) -> f64 {
+        let base_cd = self.base_drag_coefficient();
+        let re = reynolds.max(1.0);
+
+        match self {
+            AmmoType::RoundStone => {
+                if re < 1.0 {
+                    base_cd * (24.0 / re)
+                } else if re < 1000.0 {
+                    base_cd * (1.0 + 6.0 / re.sqrt() + 12.0 / re)
+                } else if re < 300_000.0 {
+                    base_cd
+                } else if re < 500_000.0 {
+                    let trans = (re - 300_000.0) / 200_000.0;
+                    base_cd * (1.0 - trans * 0.5)
+                } else {
+                    base_cd * 0.5
+                }
+            }
+            AmmoType::GunpowderBomb => {
+                let shape_factor = 1.15;
+                if re < 1000.0 {
+                    base_cd * shape_factor * (1.0 + 3.0 / re.sqrt())
+                } else if re < 200_000.0 {
+                    base_cd * shape_factor
+                } else {
+                    base_cd * shape_factor * 0.9
+                }
+            }
+            AmmoType::CorpseShell => {
+                let roughness_factor = 1.3;
+                let irregularity_factor = 1.2;
+                if re < 500.0 {
+                    base_cd * roughness_factor * irregularity_factor * (1.0 + 2.0 / re.sqrt())
+                } else if re < 100_000.0 {
+                    base_cd * roughness_factor * irregularity_factor
+                } else if re < 400_000.0 {
+                    let transition = (re - 100_000.0) / 300_000.0;
+                    base_cd * roughness_factor * irregularity_factor * (1.0 - transition * 0.15)
+                } else {
+                    base_cd * roughness_factor * irregularity_factor * 0.85
+                }
+            }
+        }
+    }
+
+    pub fn reynolds_number(&self, velocity_m_s: f64, characteristic_length_m: f64, kinematic_viscosity_m2_s: f64) -> f64 {
+        (velocity_m_s * characteristic_length_m) / kinematic_viscosity_m2_s.max(1e-9)
+    }
+
+    pub fn drag_estimation_notes(&self) -> &str {
+        match self {
+            AmmoType::RoundStone => "球形标准阻力系数 Cd=0.47（亚音速），参考Hoerner《流体动力阻力》",
+            AmmoType::GunpowderBomb => "柱球形带引信，Cd≈0.72，基于军械弹道学手册数据",
+            AmmoType::CorpseShell => "不规则生物形状，表面粗糙度高，Cd≈1.15，基于人体坠落实验和不规则物体风洞数据外推",
+        }
     }
 }
 
