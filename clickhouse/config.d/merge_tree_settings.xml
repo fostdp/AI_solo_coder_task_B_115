@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<yandex>
+    <merge_tree>
+        <ttl_only_drop_parts>1</ttl_only_drop_parts>
+        <number_of_free_entries_in_pool_to_execute_mutation>1</number_of_free_entries_in_pool_to_execute_mutation>
+        <max_bytes_to_merge_at_max_space_in_pool>10737418240</max_bytes_to_merge_at_max_space_in_pool>
+        <max_suspicious_broken_parts>5</max_suspicious_broken_parts>
+        <max_number_of_merges_with_ttl_in_pool>2</max_number_of_merges_with_ttl_in_pool>
+    </merge_tree>
+</yandex>
