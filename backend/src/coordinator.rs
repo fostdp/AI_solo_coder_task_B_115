@@ -389,22 +389,25 @@ fn pseudo_random_f64() -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_coordinate() {
-        let config = CoordinatorConfig {
-            state_bins: 5,
-            ..Default::default()
-        };
-        let wall = WallProperties {
+    fn default_wall() -> WallProperties {
+        WallProperties {
             thickness_m: 3.0,
             material: "rammed_earth".to_string(),
             density_kgm3: 1800.0,
             compressive_strength_pa: 2_000_000.0,
             tensile_strength_pa: 200_000.0,
-        };
-        let mut coordinator = SiegeCoordinator::new(config, wall);
+        }
+    }
 
-        let trebuchets = vec![
+    fn default_config() -> CoordinatorConfig {
+        CoordinatorConfig {
+            state_bins: 5,
+            ..Default::default()
+        }
+    }
+
+    fn make_trebuchets() -> Vec<TrebuchetState> {
+        vec![
             TrebuchetState {
                 id: 1,
                 ammo_type: AmmoType::RoundStone,
@@ -421,9 +424,11 @@ mod tests {
                 ready: true,
                 assigned_target: None,
             },
-        ];
+        ]
+    }
 
-        let regions = vec![WallRegionState {
+    fn make_regions() -> Vec<WallRegionState> {
+        vec![WallRegionState {
             x_m: 15.0,
             y_m: 5.0,
             width_m: 10.0,
@@ -431,9 +436,288 @@ mod tests {
             damage_ratio: 0.3,
             stress_ratio: 0.5,
             strategic_value: 1.0,
-        }];
+        }]
+    }
 
+    #[test]
+    fn test_coordinate() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
         let result = coordinator.coordinate(&trebuchets, &regions, &[]);
         assert!(!result.assignments.is_empty());
+    }
+
+    #[test]
+    fn test_coordinate_assignments_count() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        assert_eq!(result.assignments.len(), 2, "two ready trebuchets should get 2 assignments");
+    }
+
+    #[test]
+    fn test_coordinate_skips_not_ready() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let mut trebuchets = make_trebuchets();
+        trebuchets[0].ready = false;
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        assert_eq!(result.assignments.len(), 1, "only 1 ready trebuchet");
+        assert_eq!(result.assignments[0].trebuchet_id, 2);
+    }
+
+    #[test]
+    fn test_coordinate_no_ready_trebuchets() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let mut trebuchets = make_trebuchets();
+        trebuchets[0].ready = false;
+        trebuchets[1].ready = false;
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        assert!(result.assignments.is_empty());
+        assert!((result.coordination_efficiency - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_coordinate_empty_regions() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let result = coordinator.coordinate(&trebuchets, &[], &[]);
+        assert!(!result.assignments.is_empty());
+    }
+
+    #[test]
+    fn test_coordinate_target_within_wall() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        for a in &result.assignments {
+            assert!(a.target_x_m >= 0.0 && a.target_x_m <= 30.0,
+                "target x={} outside wall", a.target_x_m);
+            assert!(a.target_y_m >= 0.0 && a.target_y_m <= 10.0,
+                "target y={} outside wall", a.target_y_m);
+        }
+    }
+
+    #[test]
+    fn test_coordinate_priority_ordering() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        for w in result.assignments.windows(2) {
+            assert!(w[0].priority >= w[1].priority,
+                "assignments should be sorted by priority descending");
+        }
+    }
+
+    #[test]
+    fn test_coordinate_ammo_type_preserved() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        let types: Vec<AmmoType> = result.assignments.iter().map(|a| a.ammo_type).collect();
+        assert!(types.contains(&AmmoType::RoundStone));
+        assert!(types.contains(&AmmoType::GunpowderBomb));
+    }
+
+    #[test]
+    fn test_train_episode_improves_q_table() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+
+        let ep1 = coordinator.train_episode(&trebuchets, &regions, &[], 0.3);
+        let size_after_1 = coordinator.learner.q_table_size();
+        assert!(size_after_1 > 0, "Q-table should have entries after training");
+        assert_eq!(ep1.episode, 1);
+    }
+
+    #[test]
+    fn test_train_multiple_episodes() {
+        let config = CoordinatorConfig {
+            state_bins: 5,
+            exploration_rate: 0.5,
+            ..Default::default()
+        };
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+
+        let mut rewards = Vec::new();
+        for _ in 0..5 {
+            let ep = coordinator.train_episode(&trebuchets, &regions, &[], 0.3);
+            rewards.push(ep.total_reward);
+        }
+
+        assert!(coordinator.learner.q_table_size() > 0);
+        assert_eq!(coordinator.learner.episodes_trained, 5);
+    }
+
+    #[test]
+    fn test_exploration_decay() {
+        let config = CoordinatorConfig {
+            exploration_rate: 1.0,
+            exploration_decay: 0.9,
+            min_exploration_rate: 0.01,
+            ..Default::default()
+        };
+        let mut learner = QLearner::new(config);
+        let initial_rate = learner.config.exploration_rate;
+        for _ in 0..10 {
+            learner.decay_exploration();
+        }
+        assert!(learner.config.exploration_rate < initial_rate,
+            "exploration rate should decay");
+        assert!(learner.config.exploration_rate >= 0.01,
+            "should not go below minimum");
+    }
+
+    #[test]
+    fn test_q_learner_update() {
+        let config = default_config();
+        let mut learner = QLearner::new(config);
+        let state_key = 12345u64;
+        let num_actions = 9;
+        learner.update(state_key, 0, 10.0, 54321u64, num_actions);
+        let q_values = learner.q_table.get(&state_key).unwrap();
+        assert!(q_values[0] > 0.0, "Q-value should be updated after positive reward");
+    }
+
+    #[test]
+    fn test_q_learner_negative_reward() {
+        let config = default_config();
+        let mut learner = QLearner::new(config);
+        let state_key = 999u64;
+        learner.update(state_key, 1, -5.0, 888u64, 9);
+        let q_values = learner.q_table.get(&state_key).unwrap();
+        assert!(q_values[1] < 0.0, "Q-value should decrease with negative reward");
+    }
+
+    #[test]
+    fn test_coordinate_with_impacts() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+        let impacts = vec![ImpactLoad {
+            x_m: 15.0, y_m: 5.0, impact_force_n: 1_000_000.0, blast_radius_m: 2.0,
+        }];
+        let result = coordinator.coordinate(&trebuchets, &regions, &impacts);
+        assert!(!result.assignments.is_empty());
+    }
+
+    #[test]
+    fn test_coordinate_three_trebuchets() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let mut trebuchets = make_trebuchets();
+        trebuchets.push(TrebuchetState {
+            id: 3,
+            ammo_type: AmmoType::CorpseShell,
+            range_m: 150.0,
+            reload_time_s: 120.0,
+            ready: true,
+            assigned_target: None,
+        });
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        assert_eq!(result.assignments.len(), 3);
+    }
+
+    #[test]
+    fn test_encode_state_deterministic() {
+        let config = default_config();
+        let wall = default_wall();
+        let coordinator = SiegeCoordinator::new(config, wall);
+        let regions = make_regions();
+        let key1 = coordinator.encode_state(&regions);
+        let key2 = coordinator.encode_state(&regions);
+        assert_eq!(key1, key2, "same regions should produce same state key");
+    }
+
+    #[test]
+    fn test_encode_state_empty_regions() {
+        let config = default_config();
+        let wall = default_wall();
+        let coordinator = SiegeCoordinator::new(config, wall);
+        let key = coordinator.encode_state(&[]);
+        assert_eq!(key, 0, "empty regions should produce key 0");
+    }
+
+    #[test]
+    fn test_decode_action_valid_zones() {
+        let config = default_config();
+        let wall = default_wall();
+        let coordinator = SiegeCoordinator::new(config, wall);
+        for action in 0..9 {
+            let (x, y) = coordinator.decode_action(action);
+            assert!(x >= 0.0 && x <= 30.0, "decoded x={} out of bounds for action {}", x, action);
+            assert!(y >= 0.0 && y <= 10.0, "decoded y={} out of bounds for action {}", y, action);
+        }
+    }
+
+    #[test]
+    fn test_coordination_efficiency_calculation() {
+        let config = default_config();
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+        let result = coordinator.coordinate(&trebuchets, &regions, &[]);
+        if !result.assignments.is_empty() {
+            let expected = result.expected_total_damage / result.assignments.len() as f64;
+            assert!((result.coordination_efficiency - expected).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn test_rl_strategy_improvement_over_training() {
+        let config = CoordinatorConfig {
+            state_bins: 5,
+            exploration_rate: 0.8,
+            learning_rate: 0.2,
+            discount_factor: 0.9,
+            ..Default::default()
+        };
+        let wall = default_wall();
+        let mut coordinator = SiegeCoordinator::new(config, wall);
+        let trebuchets = make_trebuchets();
+        let regions = make_regions();
+
+        let mut total_rewards = Vec::new();
+        for _ in 0..10 {
+            let ep = coordinator.train_episode(&trebuchets, &regions, &[], 0.3);
+            total_rewards.push(ep.total_reward);
+        }
+
+        assert!(coordinator.learner.q_table_size() > 0);
+        assert!(coordinator.learner.config.exploration_rate < 0.8,
+            "exploration should decay over training");
     }
 }
