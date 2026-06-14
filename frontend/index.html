@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>古代投石机弹道动力学仿真与攻城效能评估系统</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <header class="app-header">
+            <div class="header-left">
+                <h1>🏰 古代投石机弹道动力学仿真系统</h1>
+                <p class="subtitle">Siege Ballistics Simulation &amp; Effectiveness Assessment</p>
+            </div>
+            <div class="header-right">
+                <div class="status-badge" id="connectionStatus">
+                    <span class="dot"></span>
+                    <span>连接中...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-container">
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>投石机列表</h3>
+                    <div class="trebuchet-list" id="trebuchetList">
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>城墙类型</h3>
+                    <div class="wall-selector" id="wallSelector">
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>弹药类型</h3>
+                    <div class="ammo-selector" id="ammoSelector">
+                        <div class="ammo-item active" data-ammo="round_stone">
+                            <span class="ammo-icon">🪨</span>
+                            <span class="ammo-name">圆石弹</span>
+                        </div>
+                        <div class="ammo-item" data-ammo="gunpowder_bomb">
+                            <span class="ammo-icon">💥</span>
+                            <span class="ammo-name">火药弹</span>
+                        </div>
+                        <div class="ammo-item" data-ammo="corpse_shell">
+                            <span class="ammo-icon">☠️</span>
+                            <span class="ammo-name">腐尸弹</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>投射参数</h3>
+                    <div class="param-controls">
+                        <div class="param-item">
+                            <label>初速 (m/s)</label>
+                            <input type="range" id="velocitySlider" min="10" max="100" value="50" step="1">
+                            <span id="velocityValue">50</span>
+                        </div>
+                        <div class="param-item">
+                            <label>发射角 (°)</label>
+                            <input type="range" id="angleSlider" min="20" max="70" value="45" step="1">
+                            <span id="angleValue">45</span>
+                        </div>
+                        <div class="param-item">
+                            <label>风速 (m/s)</label>
+                            <input type="range" id="windSlider" min="0" max="30" value="0" step="0.5">
+                            <span id="windValue">0</span>
+                        </div>
+                        <button class="btn-primary" id="fireBtn">🔥 发射</button>
+                        <button class="btn-secondary" id="optimizeBtn">⚡ 优化参数</button>
+                        <button class="btn-secondary" id="ammoCompareBtn">📊 弹药对比</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>高级功能</h3>
+                    <div class="advanced-controls">
+                        <button class="btn-secondary" id="analyzeWallBtn">🔍 应力分析</button>
+                        <button class="btn-secondary" id="findWeakBtn">🎯 弱点搜索</button>
+                        <button class="btn-secondary" id="coordinateBtn">🤝 协同射击</button>
+                        <button class="btn-secondary" id="battleBtn">⚔️ 历史战役</button>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="viewport">
+                <div id="canvasContainer"></div>
+
+                <div class="hud-overlay">
+                    <div class="hud-panel" id="hudBallistics">
+                        <h4>弹道参数</h4>
+                        <div class="hud-grid">
+                            <div class="hud-item">
+                                <span class="label">射程</span>
+                                <span class="value" id="hudRange">-- m</span>
+                            </div>
+                            <div class="hud-item">
+                                <span class="label">最大高度</span>
+                                <span class="value" id="hudHeight">-- m</span>
+                            </div>
+                            <div class="hud-item">
+                                <span class="label">飞行时间</span>
+                                <span class="value" id="hudTime">-- s</span>
+                            </div>
+                            <div class="hud-item">
+                                <span class="label">着速</span>
+                                <span class="value" id="hudImpactVel">-- m/s</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="hud-panel" id="hudSiege">
+                        <h4>攻城效能</h4>
+                        <div class="hud-grid">
+                            <div class="hud-item">
+                                <span class="label">冲击动能</span>
+                                <span class="value" id="hudEnergy">-- kJ</span>
+                            </div>
+                            <div class="hud-item">
+                                <span class="label">弹坑深度</span>
+                                <span class="value" id="hudCrater">-- m</span>
+                            </div>
+                            <div class="hud-item">
+                                <span class="label">损伤率</span>
+                                <span class="value" id="hudDamage">-- %</span>
+                            </div>
+                            <div class="hud-item">
+                                <span class="label">效能评分</span>
+                                <span class="value score" id="hudScore">--</span>
+                            </div>
+                        </div>
+                        <div class="damage-bar">
+                            <div class="damage-fill" id="damageFill"></div>
+                        </div>
+                        <div class="damage-label" id="damageLabel">--</div>
+                    </div>
+                </div>
+
+                <div class="view-controls">
+                    <button class="view-btn" id="viewTop">俯视图</button>
+                    <button class="view-btn" id="viewSide">侧视图</button>
+                    <button class="view-btn" id="view3d">3D视图</button>
+                    <button class="view-btn" id="viewReset">重置视角</button>
+                </div>
+            </main>
+        </div>
+
+        <div class="info-popup" id="infoPopup">
+            <div class="popup-content">
+                <button class="popup-close" id="popupClose">×</button>
+                <h3 id="popupTitle">投石机详情</h3>
+                <div class="popup-body" id="popupBody">
+                </div>
+            </div>
+        </div>
+
+        <div class="info-popup" id="feaPopup">
+            <div class="popup-content popup-wide">
+                <button class="popup-close" id="feaPopupClose">×</button>
+                <h3>城墙有限元应力分析</h3>
+                <div class="popup-body">
+                    <canvas id="feaHeatmap" width="600" height="200"></canvas>
+                    <div id="feaInfo" class="fea-info"></div>
+                    <div id="feaWeakPoints" class="fea-weak-points"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-popup" id="gaPopup">
+            <div class="popup-content popup-wide">
+                <button class="popup-close" id="gaPopupClose">×</button>
+                <h3>遗传算法弱点搜索</h3>
+                <div class="popup-body">
+                    <canvas id="gaConvergence" width="600" height="200"></canvas>
+                    <div id="gaResult" class="ga-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-popup" id="coordinatePopup">
+            <div class="popup-content popup-wide">
+                <button class="popup-close" id="coordinatePopupClose">×</button>
+                <h3>多台投石机协同射击优化</h3>
+                <div class="popup-body" id="coordinateBody">
+                </div>
+            </div>
+        </div>
+
+        <div class="info-popup" id="battlePopup">
+            <div class="popup-content popup-wide">
+                <button class="popup-close" id="battlePopupClose">×</button>
+                <h3>历史战役模拟</h3>
+                <div class="popup-body">
+                    <div id="battleList" class="battle-list"></div>
+                    <div id="battleUI" class="battle-ui" style="display:none;">
+                        <div id="battleInfo" class="battle-info"></div>
+                        <div id="battleControls" class="battle-controls"></div>
+                        <div id="battleLog" class="battle-log"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-popup" id="ammoComparePopup">
+            <div class="popup-content popup-wide">
+                <button class="popup-close" id="ammoComparePopupClose">×</button>
+                <h3>弹药对比分析</h3>
+                <div class="popup-body" id="ammoCompareBody">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/trebuchet_3d.js"></script>
+    <script src="js/ballistic_panel.js"></script>
+</body>
+</html>
