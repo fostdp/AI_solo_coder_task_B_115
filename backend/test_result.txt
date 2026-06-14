@@ -1,0 +1,465 @@
+﻿cargo :    Compiling siege-sim-backend v1.0.0 (D:\SOLO-2\AI_solo_coder_task_B_1
+15\backend)
+所在位置 行:1 字符: 88
++ ... coder_task_B_115\backend; cargo test -- --test-threads=1 2>&1 | Out-F ...
++                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling si..._B_115\backend) 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: unused import: `simulate_ballistics_with_ammo`
+ --> src\api.rs:2:56
+  |
+2 |     estimate_projectile_diameter, simulate_ballistics, simulate_ballistics_
+with_ammo, BallisticInput, stone_density,
+  |                                                        ^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `AmmoProfile`
+ --> src\api.rs:5:35
+  |
+5 | use crate::ammo::{self, AmmoType, AmmoProfile, AmmoComparison};
+  |                                   ^^^^^^^^^^^
+
+warning: unused import: `ImpactLoad`
+ --> src\api.rs:6:41
+  |
+6 | use crate::fea::{FEAnalyzer, FEAResult, ImpactLoad};
+  |                                         ^^^^^^^^^^
+
+warning: unused import: `crate::ammo::AmmoType`
+ --> src\storage.rs:3:5
+  |
+3 | use crate::ammo::AmmoType;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Layer` and `PrefixLayer`
+ --> src\metrics.rs:3:28
+  |
+3 | use metrics_util::layers::{PrefixLayer, Layer};
+  |                            ^^^^^^^^^^^  ^^^^^
+
+warning: unused imports: `debug`, `error`, and `info`
+  --> src\udp_receiver.rs:10:15
+   |
+10 | use tracing::{debug, info, warn, error};
+   |               ^^^^^  ^^^^        ^^^^^
+
+warning: unused import: `error`
+  --> src\ballistic_simulator.rs:14:34
+   |
+14 | use tracing::{debug, info, warn, error};
+   |                                  ^^^^^
+
+warning: unused import: `error`
+  --> src\siege_evaluator.rs:13:34
+   |
+13 | use tracing::{debug, info, warn, error};
+   |                                  ^^^^^
+
+warning: variable does not need to be mutable
+   --> src\storage.rs:203:13
+    |
+203 |         let mut trebuchets = vec![
+    |             ----^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `input`
+   --> src\ballistics.rs:333:9
+    |
+333 |     let input = BallisticInput {
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore:
+ `_input`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by defau
+lt
+
+warning: value assigned to `max_mach` is never read
+   --> src\ballistics.rs:392:24
+    |
+392 |     let mut max_mach = 0.0;
+    |                        ^^^ this value is reassigned later and never used
+...
+422 |     max_mach = initial_mach;
+    |     ----------------------- `max_mach` is overwritten here before the pre
+vious value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by def
+ault
+
+warning: unused variable: `projectile_radius`
+  --> src\siege.rs:49:9
+   |
+49 |     let projectile_radius = input.projectile_diameter_m / 2.0;
+   |         ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an 
+underscore: `_projectile_radius`
+
+warning: unused variable: `cross_section`
+   --> src\ammo.rs:112:13
+    |
+112 |         let cross_section = std::f64::consts::PI * (diameter / 2.0).powi(
+2);
+    |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an
+ underscore: `_cross_section`
+
+warning: unused variable: `existing_impacts`
+   --> src\coordinator.rs:219:9
+    |
+219 |         existing_impacts: &[ImpactLoad],
+    |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an 
+underscore: `_existing_impacts`
+
+warning: type `BufferLimits` is more private than the item `StorageLimitsRef::0
+`
+   --> src\storage.rs:105:29
+    |
+105 | pub struct StorageLimitsRef(pub BufferLimits);
+    |                             ^^^^^^^^^^^^^^^^ field `StorageLimitsRef::0` 
+is reachable at visibility `pub(crate)`
+    |
+note: but type `BufferLimits` is only usable at visibility `pub(self)`
+   --> src\storage.rs:88:1
+    |
+ 88 | struct BufferLimits {
+    | ^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `BallisticsRecord` is more private than the item `Database::get_r
+ecent_ballistics`
+   --> src\storage.rs:408:5
+    |
+408 |     pub async fn get_recent_ballistics(&self, trebuchet_id: u32, limit: u
+size) -> Vec<BallisticsRecord> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method `Database::get_recent_ballistics` is reac
+hable at visibility `pub(crate)`
+    |
+note: but type `BallisticsRecord` is only usable at visibility `pub(self)`
+   --> src\storage.rs:57:1
+    |
+ 57 | struct BallisticsRecord {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `SiegeRecord` is more private than the item `Database::get_recent
+_siege`
+   --> src\storage.rs:419:5
+    |
+419 |     pub async fn get_recent_siege(&self, trebuchet_id: u32, limit: usize)
+ -> Vec<SiegeRecord> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^ method `Database::get_recent_siege` is reachable at visibi
+lity `pub(crate)`
+    |
+note: but type `SiegeRecord` is only usable at visibility `pub(self)`
+   --> src\storage.rs:71:1
+    |
+ 71 | struct SiegeRecord {
+    | ^^^^^^^^^^^^^^^^^^
+
+warning: field `wall_tensile_strength` is never read
+  --> src\api.rs:86:9
+   |
+80 | pub struct GAQuery {
+   |            ------- field in this struct
+...
+86 |     pub wall_tensile_strength: Option<f64>,
+   |         ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `GAQuery` has a derived impl for the trait `Debug`, but this is inte
+ntionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `compute_derivatives` is never used
+   --> src\ballistics.rs:153:4
+    |
+153 | fn compute_derivatives(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `rk4_step` is never used
+   --> src\ballistics.rs:199:4
+    |
+199 | fn rk4_step(
+    |    ^^^^^^^^
+
+warning: fields `sensor`, `ballistics`, and `siege` are never read
+  --> src\storage.rs:89:5
+   |
+88 | struct BufferLimits {
+   |        ------------ fields in this struct
+89 |     sensor: usize,
+   |     ^^^^^^
+90 |     ballistics: usize,
+   |     ^^^^^^^^^^
+91 |     siege: usize,
+   |     ^^^^^
+   |
+   = note: `BufferLimits` has derived impls for the traits `Clone` and `Debug`,
+ but these are intentionally ignored during dead code analysis
+
+warning: struct `StorageLimitsRef` is never constructed
+   --> src\storage.rs:105:12
+    |
+105 | pub struct StorageLimitsRef(pub BufferLimits);
+    |            ^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `get_wall_by_id`, `get_recent_ballistics`, `ge
+t_recent_siege`, `get_all_sensor_data`, and `get_all_battle_states` are never u
+sed
+   --> src\storage.rs:108:12
+    |
+107 | impl Database {
+    | ------------- associated items in this implementation
+108 |     pub fn new() -> Self {
+    |            ^^^
+...
+193 |     pub async fn get_wall_by_id(&self, id: u32) -> Option<WallType> {
+    |                  ^^^^^^^^^^^^^^
+...
+408 |     pub async fn get_recent_ballistics(&self, trebuchet_id: u32, limit: u
+size) -> Vec<BallisticsRecord> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+...
+419 |     pub async fn get_recent_siege(&self, trebuchet_id: u32, limit: usize)
+ -> Vec<SiegeRecord> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+430 |     pub async fn get_all_sensor_data(&self) -> Vec<SensorData> {
+    |                  ^^^^^^^^^^^^^^^^^^^
+...
+442 |     pub async fn get_all_battle_states(&self) -> HashMap<u32, BattleState
+> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_http_requests` is never used
+  --> src\metrics.rs:98:8
+   |
+98 | pub fn increment_http_requests(method: &str, path: &str) {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `record_http_duration` is never used
+   --> src\metrics.rs:102:8
+    |
+102 | pub fn record_http_duration(method: &str, path: &str, start: Instant) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_sensor_buffer_size` is never used
+   --> src\metrics.rs:111:8
+    |
+111 | pub fn gauge_sensor_buffer_size(size: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_ballistics_buffer_size` is never used
+   --> src\metrics.rs:115:8
+    |
+115 | pub fn gauge_ballistics_buffer_size(size: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_siege_buffer_size` is never used
+   --> src\metrics.rs:119:8
+    |
+119 | pub fn gauge_siege_buffer_size(size: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_ammo_comparisons` is never used
+   --> src\metrics.rs:123:8
+    |
+123 | pub fn increment_ammo_comparisons() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_fea_analyses` is never used
+   --> src\metrics.rs:127:8
+    |
+127 | pub fn increment_fea_analyses() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `record_fea_duration` is never used
+   --> src\metrics.rs:131:8
+    |
+131 | pub fn record_fea_duration(start: Instant) {
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_ga_optimizations` is never used
+   --> src\metrics.rs:135:8
+    |
+135 | pub fn increment_ga_optimizations() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `record_ga_duration` is never used
+   --> src\metrics.rs:139:8
+    |
+139 | pub fn record_ga_duration(start: Instant) {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_ga_best_fitness` is never used
+   --> src\metrics.rs:143:8
+    |
+143 | pub fn gauge_ga_best_fitness(fitness: f64) {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_coordinator_assignments` is never used
+   --> src\metrics.rs:147:8
+    |
+147 | pub fn increment_coordinator_assignments(count: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_battles_started` is never used
+   --> src\metrics.rs:151:8
+    |
+151 | pub fn increment_battles_started() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `increment_battle_impacts` is never used
+   --> src\metrics.rs:155:8
+    |
+155 | pub fn increment_battle_impacts() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `gauge_active_battles` is never used
+   --> src\metrics.rs:159:8
+    |
+159 | pub fn gauge_active_battles(count: usize) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: field `source_addr` is never read
+  --> src\udp_receiver.rs:27:9
+   |
+26 | pub struct SensorEnvelope {
+   |            -------------- field in this struct
+27 |     pub source_addr: SocketAddr,
+   |         ^^^^^^^^^^^
+   |
+   = note: `SensorEnvelope` has derived impls for the traits `Clone` and `Debug
+`, but these are intentionally ignored during dead code analysis
+
+warning: function `build_frame` is never used
+   --> src\udp_receiver.rs:173:8
+    |
+173 | pub fn build_frame(payload: &[u8], seq_num: u32, config: &UdpConfig) -> V
+ec<u8> {
+    |        ^^^^^^^^^^^
+
+warning: associated constant `MATERIAL` is never used
+   --> src\siege_evaluator.rs:167:11
+    |
+165 | impl DefaultWall {
+    | ---------------- associated constant in this implementation
+166 |     const THICKNESS: f64 = 3.0;
+167 |     const MATERIAL: &'static str = "rammed_earth";
+    |           ^^^^^^^^
+
+warning: method `clone` is never used
+   --> src\siege_evaluator.rs:190:8
+    |
+189 | impl DefaultWallStruct {
+    | ---------------------- method in this implementation
+190 |     fn clone(&self) -> WallProperties {
+    |        ^^^^^
+
+warning: function `build_frame` is never used
+   --> src\udp_server.rs:162:8
+    |
+162 | pub fn build_frame(payload: &[u8], seq_num: u32) -> Vec<u8> {
+    |        ^^^^^^^^^^^
+
+warning: methods `name_zh` and `description` are never used
+  --> src\ammo.rs:73:12
+   |
+16 | impl AmmoType {
+   | ------------- methods in this implementation
+...
+73 |     pub fn name_zh(&self) -> &str {
+   |            ^^^^^^^
+...
+81 |     pub fn description(&self) -> &str {
+   |            ^^^^^^^^^^^
+
+warning: fields `config` and `wall` are never read
+   --> src\coordinator.rs:145:5
+    |
+144 | pub struct SiegeCoordinator {
+    |            ---------------- fields in this struct
+145 |     config: CoordinatorConfig,
+    |     ^^^^^^
+146 |     learner: QLearner,
+147 |     wall: WallProperties,
+    |     ^^^^
+
+error: linking with `x86_64-w64-mingw32-gcc` failed: exit code: 1
+  |
+  = note: "x86_64-w64-mingw32-gcc" "-fno-use-linker-plugin" "-Wl,--dynamicbase"
+ "-Wl,--disable-auto-image-base" "-m64" "-Wl,--high-entropy-va" "D:\\SOLO-2\\AI
+_solo_coder_task_B_115\\backend\\target\\debug\\deps\\rustc4wpMoN\\symbols.o" "
+<176 object files omitted>" "-Wl,-Bstatic" "<sysroot>\\lib\\rustlib\\x86_64-pc-
+windows-gnu\\lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "D
+:\\SOLO-2\\AI_solo_coder_task_B_115\\backend\\target\\debug\\deps/{libtracing_s
+ubscriber-a4156d3f177a79e0,libsharded_slab-78c4d3a465dbec73,liblazy_static-0cd9
+31c4da515dec,libmatchers-38a7880b11877c83,libregex_automata-69cb15901dba5fe2,li
+bregex_syntax-bc758867a3d59adb,libnu_ansi_term-270c12e40ae7b6f3,libthread_local
+-6fba255200f6e8e3,libtracing_log-688059f91c5326e0,libtower_http-fb9e3413df2865c
+2,libbitflags-b9ae4d813cd1174a,libtokio_util-4c4e6927f047f999,libfutures_sink-4
+c886334e01c7a16,libasync_compression-f35ec5f1d1584f1e,libcompression_codecs-abb
+3c8a42b3757a7,libflate2-5c41ae96fda2cf34,libminiz_oxide-40cdb4069043a68d,libsim
+d_adler32-8c5d9dc58410f15c,libcrc32fast-269a359687276c5e,libcompression_core-6e
+b7ad2d7fa0cef1,libmetrics_exporter_prometheus-fcf0a3ef91bea7ce,libbase64-7fca22
+cebfa6ef5e,libipnet-5fe67eae60fa107d,libmetrics_util-205c64fa855487ca,libnum_cp
+us-4d9299c5cd14904c,libradix_trie-855f45c1471209fd,libnibble_vec-8762c3b69d40a3
+60,libendian_type-8b2a70a9e362ee7a,libaho_corasick-c27fcf030e8afa09,libsketches
+_ddsketch-9ff10a3ad2083534,libhashbrown-1011ba07134798eb,libordered_float-77e7d
+2e42d63d2dd,libcrossbeam_epoch-0f80490e1382b8a0,libquanta-33fc61704c9b6073,libr
+aw_cpuid-8af00d734d902144,libwinapi-7490058c0b31a93c,libcrossbeam_utils-9bf50f9
+f78ef5820,libthiserror-ec3ee01f0de4cc98,libindexmap-cf7c7f0500641e51,libhashbro
+wn-03bca5998fc07aec,libmetrics-f692af1df62a6b42,libahash-3a35e1bb64063c5b,libze
+rocopy-2d4c6bb83baf3f1b,libchrono-7c42e482044164ef,libnum_traits-4fce0d1ed88c5c
+9e,libaxum-6b9c98ed7ff49f12,libserde_path_to_error-058c0c629321c87f,libserde_js
+on-f6e52adead065d27,libmemchr-2fabadbeb1156a91,libzmij-feb17b924d199861,libserd
+e_urlencoded-9040ed8d652fcee7,libryu-003b1bdcfa30dab1,libform_urlencoded-956124
+426b3b7f2d,libpercent_encoding-93775d5cfc751082,libmatchit-11190ee1a4e3bd6c,lib
+bitflags-24db8d0a91a416c9,libhyper-ba99cf04f12a6eaa,libwant-eb549237449273b5,li
+btry_lock-e8b68ecd0355e0e0,libsocket2-3f5c92e3ecc7b6c7,libwindows_sys-1773b22f6
+c95b15d,libwindows_targets-e3c2bfb5f49949da,libhttparse-f3946c29b6948279,libtra
+cing-b13c565dc062640d,liblog-81f37d1e426ee3e5,libtracing_core-b3d798cafff40fdf,
+libonce_cell-377a148eca03ec6e,libfutures_channel-8410b078011dcaf6,libhttpdate-6
+fe381c0f6933809,libsync_wrapper-9950b8df341085aa,libserde-e88fdb76a2c73751,libs
+erde_core-1864f8d96b428d69,libaxum_core-a56641b1d6027b9b,libmime-c4b678595028cd
+67,libhttp_body-56b751e709006318,libtower-7c2a0eed056b0f08,libpin_project-37eac
+fa234c68223,libtower_layer-8fd9956dfc8f9e1c,libfutures_util-28e2092feffff7d1,li
+bfutures_task-d0b1b193d2c2e5b4,libfutures_core-f095b845ba8b57a8,libtower_servic
+e-1c2934e744060f47,libtokio-944248b7ecc2283f,libsocket2-c4d4b54071bd6b3c,libmio
+-a25a14dc9f164224,libwindows_sys-38b063a26955caa2,libparking_lot-97e4ff45dcddf9
+c3,libparking_lot_core-8f1cf338956ad993,libwindows_link-d11c63dc1266a0e1,libcfg
+_if-3b1818a7d8845f6b,libsmallvec-49cf18448cdf667e,liblock_api-24fd9bc49db19810,
+libscopeguard-c7aa0e13fb30c62d,libpin_project_lite-678404a18724cd14,libhttp-b28
+9fe9b9f9614cf,libitoa-b3f1ad362aef0f6c,libbytes-f85c2f43b3a099f1,libfnv-8d2bb8c
+0398ea8d2}.rlib" "<sysroot>\\lib\\rustlib\\x86_64-pc-windows-gnu\\lib/{libstd-*
+,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-
+*,libwindows_link-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc
+_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,libru
+stc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-W
+l,-Bdynamic" "-lkernel32" "-lwinapi_kernel32" "-lwindows.0.52.0" "-lkernel32" "
+-lkernel32" "-lkernel32" "-lntdll" "-luserenv" "-lws2_32" "-ldbghelp" "-lgcc_eh
+" "-l:libpthread.a" "-lmsvcrt" "-lmingwex" "-lmingw32" "-lgcc" "-lmsvcrt" "-lmi
+ngwex" "-luser32" "-lkernel32" "-Wl,--nxcompat" "-L" "C:\\Users\\y\\.cargo\\reg
+istry\\src\\index.crates.io-1949cf8c6b5b557f\\windows_x86_64_gnu-0.52.6\\lib" "
+-L" "C:\\Users\\y\\.cargo\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\win
+api-x86_64-pc-windows-gnu-0.4.0\\lib" "-o" "D:\\SOLO-2\\AI_solo_coder_task_B_11
+5\\backend\\target\\debug\\deps\\siege_sim_backend-3b00ee96a1bb3a13.exe" "-Wl,-
+-gc-sections" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker argume
+nts
+  = note: C:/Users/y/AppData/Local/Microsoft/WinGet/Packages/BrechtSanders.WinL
+ibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin/../lib/gcc/x86
+_64-w64-mingw32/16.1.0/../../../../x86_64-w64-mingw32/bin/ld.exe: cannot open o
+utput file D:\SOLO-2\AI_solo_coder_task_B_115\backend\target\debug\deps\siege_s
+im_backend-3b00ee96a1bb3a13.exe: Permission denied
+          collect2.exe: error: ld returned 1 exit status
+          
+
+warning: `siege-sim-backend` (bin "siege-sim-backend" test) generated 45 warnin
+gs
+error: could not compile `siege-sim-backend` (bin "siege-sim-backend" test) due
+ to 1 previous error; 45 warnings emitted
